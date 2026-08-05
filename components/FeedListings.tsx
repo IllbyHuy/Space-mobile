@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Share, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800';
 
@@ -12,14 +13,19 @@ const getPicUrl = (pic: any) => {
 };
 
 // Nhận thêm headerPadding để căn lề trên
-export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, headerPadding?: number }) => {
+export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '' }: { onScroll?: any, headerPadding?: number, searchQuery?: string }) => {
   const [listings, setListings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
     const fetchFeed = async () => {
       try {
+        const storedToken = await AsyncStorage.getItem('portal_token');
+        setToken(storedToken);
+
         const [spaceRes, listingRes] = await Promise.all([
           fetch('https://flexi-space-capstone-project.onrender.com/api/Space/GetAll', { headers: { accept: '*/*' } }),
           fetch('https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll', { headers: { accept: '*/*' } })
@@ -27,11 +33,11 @@ export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, 
 
         let spaces: any[] = [];
         if (spaceRes.ok) spaces = await spaceRes.json();
-        
+
         if (listingRes.ok) {
           const listingData = await listingRes.json();
           let safeData = Array.isArray(listingData) ? listingData : (listingData?.data || listingData?.items || []);
-          
+
           safeData = safeData.map((item: any) => {
             const parentSpace = spaces.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
             return {
@@ -40,8 +46,23 @@ export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, 
               address: item.spaceAddress || item.location || item.address || parentSpace?.address || parentSpace?.location || ''
             };
           });
-          
+
           setListings(safeData.reverse());
+        }
+
+        if (storedToken) {
+          const favRes = await fetch('https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser', {
+            headers: { Authorization: `Bearer ${storedToken}`, accept: '*/*' }
+          });
+          if (favRes.ok) {
+            const favData = await favRes.json();
+            const favArray = Array.isArray(favData) ? favData : (favData?.data || favData?.items || favData?.listingIds || []);
+            const ids = favArray.map((item: any) => {
+              if (typeof item === 'number' || typeof item === 'string') return item.toString();
+              return (item?.listingId || item?.ListingId || item?.listing?.id || item?.id || item?.Id)?.toString();
+            }).filter(Boolean);
+            setFavoriteIds(new Set(ids));
+          }
         }
       } catch (error) {
         console.error('Lỗi tải Feed:', error);
@@ -52,11 +73,61 @@ export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, 
     fetchFeed();
   }, []);
 
+  const handleToggleFavorite = async (listingId: string | number) => {
+    if (!token) {
+      Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để lưu mặt bằng!', [
+        { text: 'Để sau', style: 'cancel' },
+        { text: 'Đăng nhập', onPress: () => router.push('/login') }
+      ]);
+      return;
+    }
+    const idStr = listingId.toString();
+    const isSaved = favoriteIds.has(idStr);
+    try {
+      if (isSaved) {
+        const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/FavoriteList/listings/${Number(listingId)}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
+        });
+        if (res.ok) {
+          setFavoriteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(idStr);
+            return next;
+          });
+        }
+      } else {
+        const res = await fetch('https://flexi-space-capstone-project.onrender.com/api/FavoriteList/listings', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', accept: '*/*' },
+          body: JSON.stringify({ listingIds: [Number(listingId)] })
+        });
+        if (res.ok) {
+          setFavoriteIds((prev) => new Set(prev).add(idStr));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleShareListing = async (item: any) => {
+    try {
+      await Share.share({
+        title: item.name || 'Mặt bằng cho thuê',
+        message: `${item.name || 'Mặt bằng cho thuê'} - ${item.address || ''}`
+      });
+    } catch (err) {
+      console.error('Lỗi chia sẻ:', err);
+    }
+  };
+
   const renderFacebookStylePost = ({ item }: { item: any }) => {
     const rawPictures = item.listingPictures || [];
     const mainImage = rawPictures.length > 0 ? getPicUrl(rawPictures[0]) : FALLBACK_IMAGE;
     const isHourly = (item.listingType === 'SharedSpace' || item.isHourly === true);
-    
+    const itemId = item.id || item.Id;
+    const isSaved = favoriteIds.has(itemId?.toString());
+
     return (
       <View style={styles.postContainer}>
         {/* HEADER */}
@@ -95,15 +166,15 @@ export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, 
 
         {/* FOOTER */}
         <View style={styles.postActions}>
-          <TouchableOpacity style={styles.actionBtn}>
-            <Feather name="heart" size={20} color="#65676B" />
-            <Text style={styles.actionText}>Lưu tin</Text>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => handleToggleFavorite(itemId)}>
+            <Feather name="heart" size={20} color={isSaved ? '#E02424' : '#65676B'} />
+            <Text style={[styles.actionText, isSaved && { color: '#E02424' }]}>{isSaved ? 'Đã lưu' : 'Lưu tin'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Thông báo', 'Chuẩn bị tích hợp API Chat!')}>
             <Feather name="message-circle" size={20} color="#65676B" />
             <Text style={styles.actionText}>Nhắn tin</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => handleShareListing(item)}>
             <Feather name="share-2" size={20} color="#65676B" />
             <Text style={styles.actionText}>Chia sẻ</Text>
           </TouchableOpacity>
@@ -114,9 +185,17 @@ export const FeedListings = ({ onScroll, headerPadding = 0 }: { onScroll?: any, 
 
   if (isLoading) return <ActivityIndicator size="large" color="#00A67E" style={{ marginTop: headerPadding + 40 }} />;
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredListings = normalizedQuery
+    ? listings.filter((item) =>
+        (item.name || '').toLowerCase().includes(normalizedQuery) ||
+        (item.address || '').toLowerCase().includes(normalizedQuery)
+      )
+    : listings;
+
   return (
     <Animated.FlatList
-      data={listings}
+      data={filteredListings}
       keyExtractor={(item, index) => (item.id || item.Id || index).toString()}
       renderItem={renderFacebookStylePost}
       showsVerticalScrollIndicator={false}

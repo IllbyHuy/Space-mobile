@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Share, Alert, TextInput, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'; // THÊM Stack VÀO ĐÂY
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800';
@@ -27,10 +28,21 @@ export default function ListingDetailScreen() {
 
   const [listing, setListing] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookingOfferedPrice, setBookingOfferedPrice] = useState('');
+  const [bookingDuration, setBookingDuration] = useState('1');
+  const [bookingPurpose, setBookingPurpose] = useState('');
+  const [bookingNote, setBookingNote] = useState('');
 
   useEffect(() => {
     const fetchDetail = async () => {
       try {
+        const storedToken = await AsyncStorage.getItem('portal_token');
+        setToken(storedToken);
+
         const [spaceRes, listingRes] = await Promise.all([
           fetch('https://flexi-space-capstone-project.onrender.com/api/Space/GetAll', { headers: { accept: '*/*' } }),
           fetch('https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll', { headers: { accept: '*/*' } })
@@ -38,23 +50,41 @@ export default function ListingDetailScreen() {
 
         let spaces: any[] = [];
         if (spaceRes.ok) spaces = await spaceRes.json();
-        
+
         if (listingRes.ok) {
           const listingData = await listingRes.json();
           const safeData = Array.isArray(listingData) ? listingData : (listingData?.data || listingData?.items || []);
-          
+
           const found = safeData.find((item: any) => (item.id?.toString() === id || item.Id?.toString() === id));
 
           if (found) {
             const parentSpace = spaces.find((s: any) => (s.id || s.Id) === (found.spaceId || found.SpaceId));
-            setListing({
+            const merged = {
               ...found,
               area: found.area || parentSpace?.area || null,
               address: found.location || found.address || parentSpace?.address || parentSpace?.location || '',
               amenities: found.amenities || parentSpace?.amenities || [],
               operatingHours: found.operatingHours || parentSpace?.operatingHours || [],
               allowedCategories: found.spaceAllowedCategories || parentSpace?.spaceAllowedCategories || []
+            };
+            setListing(merged);
+            if (merged.price) setBookingOfferedPrice(merged.price.toString());
+          }
+        }
+
+        if (storedToken && id) {
+          const favRes = await fetch('https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser', {
+            headers: { Authorization: `Bearer ${storedToken}`, accept: '*/*' }
+          });
+          if (favRes.ok) {
+            const favData = await favRes.json();
+            const favArray = Array.isArray(favData) ? favData : (favData?.data || favData?.items || favData?.listingIds || []);
+            const isFav = favArray.some((item: any) => {
+              if (typeof item === 'number' || typeof item === 'string') return item.toString() === id.toString();
+              const itemId = item?.listingId || item?.ListingId || item?.listing?.id || item?.id || item?.Id;
+              return itemId?.toString() === id.toString();
             });
+            setIsFavorite(isFav);
           }
         }
       } catch (error) {
@@ -65,6 +95,99 @@ export default function ListingDetailScreen() {
     };
     if (id) fetchDetail();
   }, [id]);
+
+  const handleToggleFavorite = async () => {
+    if (!token) {
+      Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để lưu mặt bằng!', [
+        { text: 'Để sau', style: 'cancel' },
+        { text: 'Đăng nhập', onPress: () => router.push('/login') }
+      ]);
+      return;
+    }
+    try {
+      const numericId = Number(id);
+      if (isFavorite) {
+        const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/FavoriteList/listings/${numericId}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
+        });
+        if (res.ok) setIsFavorite(false);
+      } else {
+        const res = await fetch('https://flexi-space-capstone-project.onrender.com/api/FavoriteList/listings', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', accept: '*/*' },
+          body: JSON.stringify({ listingIds: [numericId] })
+        });
+        if (res.ok) setIsFavorite(true);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        title: listing?.name || 'Mặt bằng cho thuê',
+        message: `${listing?.name || 'Mặt bằng cho thuê'} - ${listing?.address || ''}`
+      });
+    } catch (err) {
+      console.error('Lỗi chia sẻ:', err);
+    }
+  };
+
+  const openBookingModal = () => {
+    if (!token) {
+      Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để gửi yêu cầu thuê!', [
+        { text: 'Để sau', style: 'cancel' },
+        { text: 'Đăng nhập', onPress: () => router.push('/login') }
+      ]);
+      return;
+    }
+    setIsBookingModalOpen(true);
+  };
+
+  const handleSubmitBooking = async () => {
+    if (!token || !listing) return;
+    if (!bookingOfferedPrice || !bookingDuration || !bookingPurpose.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ giá đề nghị, thời hạn và mục đích sử dụng.');
+      return;
+    }
+
+    setIsSubmittingBooking(true);
+    try {
+      const isHourly = (listing.listingType === 'SharedSpace' || listing.isHourly === true);
+      const payload = {
+        listingId: Number(listing.id || listing.Id),
+        offeredPrice: Number(bookingOfferedPrice),
+        duration: Number(bookingDuration),
+        durationUnit: isHourly ? 'Hour' : 'Month',
+        purpose: bookingPurpose.trim(),
+        note: bookingNote.trim(),
+        expectedStartDate: new Date().toISOString()
+      };
+
+      const response = await fetch('https://flexi-space-capstone-project.onrender.com/api/PrimaryBookingRequest/Create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        setIsBookingModalOpen(false);
+        Alert.alert('Thành công', 'Gửi yêu cầu thuê thành công! Vui lòng chờ chủ nhà duyệt.');
+      } else {
+        const rawText = await response.text();
+        let err: any = {};
+        try { err = rawText ? JSON.parse(rawText) : {}; } catch {}
+        Alert.alert('Lỗi', err.message || 'Có lỗi xảy ra khi gửi yêu cầu.');
+      }
+    } catch (error) {
+      console.error('Lỗi API Booking:', error);
+      Alert.alert('Lỗi', 'Không thể kết nối đến máy chủ.');
+    } finally {
+      setIsSubmittingBooking(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -101,11 +224,11 @@ export default function ListingDetailScreen() {
       
       {/* NÚT SHARE/SAVE OVERLAY */}
       <View style={[styles.topRightActions, { top: Math.max(insets.top, 20) + 10 }]}>
-        <TouchableOpacity style={styles.iconBtnOverlay}>
+        <TouchableOpacity style={styles.iconBtnOverlay} onPress={handleShare}>
           <Feather name="share" size={20} color="#111827" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtnOverlay}>
-          <Feather name="heart" size={20} color="#111827" />
+        <TouchableOpacity style={styles.iconBtnOverlay} onPress={handleToggleFavorite}>
+          <Feather name="heart" size={20} color={isFavorite ? '#E02424' : '#111827'} style={isFavorite ? { transform: [{ scale: 1.05 }] } : undefined} />
         </TouchableOpacity>
       </View>
 
@@ -239,10 +362,72 @@ export default function ListingDetailScreen() {
             <Text style={styles.bottomUnit}>{isHourly ? '/giờ' : '/tháng'}</Text>
           </Text>
         </View>
-        <TouchableOpacity style={styles.bookBtn}>
+        <TouchableOpacity style={styles.bookBtn} onPress={openBookingModal}>
           <Text style={styles.bookBtnText}>Gửi yêu cầu</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={isBookingModalOpen} animationType="slide" transparent onRequestClose={() => setIsBookingModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom || 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Gửi yêu cầu thuê</Text>
+              <TouchableOpacity onPress={() => setIsBookingModalOpen(false)}>
+                <Feather name="x" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalLabel}>Giá đề nghị (đ)</Text>
+              <TextInput
+                style={styles.modalInput}
+                keyboardType="numeric"
+                value={bookingOfferedPrice}
+                onChangeText={setBookingOfferedPrice}
+                placeholder="Nhập giá đề nghị"
+              />
+
+              <Text style={styles.modalLabel}>Thời hạn thuê ({isHourly ? 'giờ' : 'tháng'})</Text>
+              <TextInput
+                style={styles.modalInput}
+                keyboardType="numeric"
+                value={bookingDuration}
+                onChangeText={setBookingDuration}
+                placeholder="Số lượng"
+              />
+
+              <Text style={styles.modalLabel}>Mục đích sử dụng</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={bookingPurpose}
+                onChangeText={setBookingPurpose}
+                placeholder="VD: Kinh doanh cà phê"
+              />
+
+              <Text style={styles.modalLabel}>Ghi chú (không bắt buộc)</Text>
+              <TextInput
+                style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                value={bookingNote}
+                onChangeText={setBookingNote}
+                placeholder="Ghi chú thêm cho chủ nhà"
+                multiline
+              />
+
+              <TouchableOpacity
+                style={[styles.bookBtn, { alignSelf: 'stretch', alignItems: 'center', marginTop: 8 }, isSubmittingBooking && { opacity: 0.7 }]}
+                onPress={handleSubmitBooking}
+                disabled={isSubmittingBooking}
+              >
+                {isSubmittingBooking ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.bookBtnText}>Xác nhận gửi yêu cầu</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -303,5 +488,14 @@ const styles = StyleSheet.create({
   bottomPrice: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
   bottomUnit: { fontSize: 14, color: '#6B7280', fontWeight: 'normal' },
   bookBtn: { backgroundColor: '#111827', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 8 },
-  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  bookBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  modalLabel: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  modalInput: {
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#111827'
+  }
 });

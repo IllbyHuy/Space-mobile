@@ -272,7 +272,7 @@ export default function AuthScreen() {
                   )}
 
                   {isLoginMode && (
-                    <TouchableOpacity style={{ alignSelf: 'flex-end', marginBottom: 20 }}>
+                    <TouchableOpacity style={{ alignSelf: 'flex-end', marginBottom: 20 }} onPress={() => router.push('/forgot-password')}>
                       <Text style={{ color: '#00D4A0', fontSize: 13, fontWeight: 'bold' }}>Quên mật khẩu?</Text>
                     </TouchableOpacity>
                   )}
