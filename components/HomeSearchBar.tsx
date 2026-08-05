@@ -1,30 +1,35 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-export const HomeSearchBar = () => {
+type HomeSearchBarProps = {
+  value?: string;
+  onChangeValue?: (text: string) => void;
+};
+
+export const HomeSearchBar = ({ value, onChangeValue }: HomeSearchBarProps) => {
   return (
     <View style={styles.container}>
       {/* Khung Search */}
       <View style={styles.searchBox}>
         <Feather name="search" size={18} color="#6B7280" />
-        <TextInput 
+        <TextInput
           placeholder="Tìm kiếm mặt bằng, khu vực..."
           placeholderTextColor="#9CA3AF"
           style={styles.input}
+          value={value}
+          onChangeText={onChangeValue}
+          returnKeyType="search"
         />
       </View>
 
       {/* Nút Lọc (Filter) */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.filterBtn}
         // Sau này chỗ này sẽ gọi Bottom Sheet hoặc Modal hiện ra 1 đống lựa chọn
-        onPress={() => alert('Sẽ mở bảng Chọn Bộ Lọc (Giá, Diện tích, Khu vực...)')}
+        onPress={() => Alert.alert('Sắp ra mắt', 'Bộ lọc theo Giá, Diện tích, Khu vực... đang được phát triển.')}
       >
         <Feather name="sliders" size={18} color="#00A67E" />
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>3</Text>
-        </View>
       </TouchableOpacity>
     </View>
   );
@@ -57,7 +62,6 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   filterBtn: {
-    position: 'relative',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -65,22 +69,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#E02424',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#fff',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: 'bold',
-  }
 });

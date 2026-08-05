@@ -3,12 +3,16 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Act
 import { Feather } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomNavBar } from '@/components/BottomNavBar';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  
+  const insets = useSafeAreaInsets();
+
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isVerified, setIsVerified] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -20,23 +24,27 @@ export default function ProfileScreen() {
           throw new Error('Không tìm thấy thông tin đăng nhập');
         }
 
-        const response = await fetch(`https://flexi-space-capstone-project.onrender.com/api/User/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'accept': '*/*'
-          }
-        });
+        const [userRes, verifyRes] = await Promise.all([
+          fetch(`https://flexi-space-capstone-project.onrender.com/api/User/${userId}`, {
+            headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
+          }),
+          fetch('https://flexi-space-capstone-project.onrender.com/api/Profile/me', {
+            headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
+          })
+        ]);
 
-        if (!response.ok) throw new Error('Không thể tải profile');
+        if (!userRes.ok) throw new Error('Không thể tải profile');
 
-        const rawData = await response.json();
-        
-        // IN RA TERMINAL ĐỂ SOI DỮ LIỆU THẬT
-        console.log("=== API PROFILE TRẢ VỀ ===", JSON.stringify(rawData, null, 2));
+        const rawData = await userRes.json();
 
         // Chuẩn hóa: Nếu backend bọc trong rawData.data thì lấy cái đó, không thì lấy luôn rawData
         const safeData = rawData.data || rawData;
         setUserProfile(safeData);
+
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          setIsVerified(!!verifyData?.isVerified);
+        }
 
       } catch (error) {
         console.error("Lỗi tải Profile:", error);
@@ -51,6 +59,10 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     await AsyncStorage.multiRemove(['portal_token', 'current_user_id']);
     router.replace('/login');
+  };
+
+  const notifyComingSoon = (feature: string) => {
+    Alert.alert('Sắp ra mắt', `Tính năng "${feature}" đang được phát triển.`);
   };
 
   const MenuItem = ({ icon, title, onPress, color = '#111827' }: { icon: any, title: string, onPress: () => void, color?: string }) => (
@@ -87,26 +99,34 @@ export default function ProfileScreen() {
           <ActivityIndicator size="large" color="#00A67E" />
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 + insets.bottom }}>
           
           <View style={styles.profileSection}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>{shortName}</Text>
-              </View>
-            )}
-            
+            <View>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>{shortName}</Text>
+                </View>
+              )}
+              {isVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Feather name="check-circle" size={16} color="#00A67E" />
+                </View>
+              )}
+            </View>
+
             <View style={styles.infoWrap}>
               <Text style={styles.userName}>{fullName}</Text>
               <Text style={styles.userEmail}>{emailStr}</Text>
-              
-              <View style={{ flexDirection: 'row', marginTop: 4 }}>
+
+              <View style={{ flexDirection: 'row', marginTop: 4, gap: 6 }}>
                  <Text style={styles.roleBadge}>{roleStr === 'Admin' || roleStr === 'admin' ? 'Quản trị viên' : 'Thành viên'}</Text>
+                 {isVerified && <Text style={styles.verifiedBadgeText}>Đã xác thực</Text>}
               </View>
             </View>
-            <TouchableOpacity style={styles.editBtn}>
+            <TouchableOpacity style={styles.editBtn} onPress={() => notifyComingSoon('Chỉnh sửa hồ sơ')}>
               <Feather name="edit-2" size={18} color="#00A67E" />
             </TouchableOpacity>
           </View>
@@ -114,15 +134,16 @@ export default function ProfileScreen() {
           <View style={styles.menuSection}>
             <Text style={styles.sectionLabel}>Tài khoản</Text>
             <View style={styles.card}>
-              <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => {}} />
-              <MenuItem icon="calendar" title="Quản lý lịch hẹn" onPress={() => {}} />
-              <MenuItem icon="credit-card" title="Ví & Thanh toán" onPress={() => {}} />
+              <MenuItem icon="shield" title="Xác thực định danh" onPress={() => router.push('/identity-verification')} />
+              <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => notifyComingSoon('Hồ sơ cá nhân')} />
+              <MenuItem icon="calendar" title="Quản lý lịch hẹn" onPress={() => notifyComingSoon('Quản lý lịch hẹn')} />
+              <MenuItem icon="credit-card" title="Ví & Thanh toán" onPress={() => notifyComingSoon('Ví & Thanh toán')} />
             </View>
 
             <Text style={styles.sectionLabel}>Hệ thống</Text>
             <View style={styles.card}>
-              <MenuItem icon="settings" title="Cài đặt" onPress={() => {}} />
-              <MenuItem icon="help-circle" title="Trợ giúp & Hỗ trợ" onPress={() => {}} />
+              <MenuItem icon="settings" title="Cài đặt" onPress={() => notifyComingSoon('Cài đặt')} />
+              <MenuItem icon="help-circle" title="Trợ giúp & Hỗ trợ" onPress={() => notifyComingSoon('Trợ giúp & Hỗ trợ')} />
             </View>
             
             <View style={[styles.card, { marginTop: 16 }]}>
@@ -131,6 +152,8 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       )}
+
+      <BottomNavBar active="profile" style={{ paddingBottom: insets.bottom, height: 60 + insets.bottom }} />
     </SafeAreaView>
   );
 }
@@ -151,9 +174,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
   },
   avatar: { width: 64, height: 64, borderRadius: 32 },
-  avatarPlaceholder: { 
-    width: 64, height: 64, borderRadius: 32, 
-    backgroundColor: '#00A67E', justifyContent: 'center', alignItems: 'center' 
+  verifiedBadge: {
+    position: 'absolute', bottom: -2, right: -2,
+    backgroundColor: '#fff', borderRadius: 10, padding: 1
+  },
+  verifiedBadgeText: {
+    backgroundColor: '#ECFDF5', color: '#00A67E', fontSize: 11, fontWeight: 'bold',
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12
+  },
+  avatarPlaceholder: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#00A67E', justifyContent: 'center', alignItems: 'center'
   },
   avatarText: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
   infoWrap: { flex: 1, marginLeft: 16 },

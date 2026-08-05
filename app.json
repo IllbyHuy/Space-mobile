@@ -39,7 +39,19 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ứng dụng cần quyền truy cập camera để quét mã QR trên CCCD."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để tải ảnh CCCD lên."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
