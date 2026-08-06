@@ -5,9 +5,10 @@ import { Feather } from '@expo/vector-icons';
 type HomeSearchBarProps = {
   value?: string;
   onChangeValue?: (text: string) => void;
+  onPressMap?: () => void; // Thêm prop để gọi chuyển trang ra bên ngoài
 };
 
-export const HomeSearchBar = ({ value, onChangeValue }: HomeSearchBarProps) => {
+export const HomeSearchBar = ({ value, onChangeValue, onPressMap }: HomeSearchBarProps) => {
   return (
     <View style={styles.container}>
       {/* Khung Search */}
@@ -23,9 +24,17 @@ export const HomeSearchBar = ({ value, onChangeValue }: HomeSearchBarProps) => {
         />
       </View>
 
+      {/* Nút Xem Bản đồ (Map) */}
+      <TouchableOpacity
+        style={styles.iconBtn}
+        onPress={onPressMap || (() => Alert.alert('Bản đồ', 'Đang chuyển hướng sang màn hình Bản đồ...'))}
+      >
+        <Feather name="map" size={18} color="#00A67E" />
+      </TouchableOpacity>
+
       {/* Nút Lọc (Filter) */}
       <TouchableOpacity
-        style={styles.filterBtn}
+        style={styles.iconBtn}
         // Sau này chỗ này sẽ gọi Bottom Sheet hoặc Modal hiện ra 1 đống lựa chọn
         onPress={() => Alert.alert('Sắp ra mắt', 'Bộ lọc theo Giá, Diện tích, Khu vực... đang được phát triển.')}
       >
@@ -44,7 +53,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
-    gap: 12,
+    gap: 8, // Đổi xuống 8 để nhét vừa 2 nút icon cho gọn
   },
   searchBox: {
     flex: 1,
@@ -61,7 +70,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
   },
-  filterBtn: {
+  iconBtn: { // Đổi tên từ filterBtn thành iconBtn để dùng chung cho cả 2 nút
     width: 40,
     height: 40,
     borderRadius: 20,
