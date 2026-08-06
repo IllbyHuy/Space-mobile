@@ -6,11 +6,36 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { FeedListings } from "@/components/FeedListings";
 import { HomeSearchBar } from "@/components/HomeSearchBar";
+import { useNotificationContext } from "@/hooks/NotificationContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [searchQuery, setSearchQuery] = useState("");
+  const { unreadCount, setUnreadCount } = useNotificationContext();
+
+  React.useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const token = await AsyncStorage.getItem("portal_token");
+        if (!token) return;
+        const res = await fetch("https://flexi-space-capstone-project.onrender.com/api/Notification/history", {
+          headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const unread = data.filter((n) => !n.isRead).length;
+            setUnreadCount(unread);
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching notifications on home:", e);
+      }
+    };
+    fetchUnreadCount();
+  }, []);
 
   const router = useRouter(); // 2. KHỞI TẠO ROUTER
 
@@ -63,8 +88,11 @@ export default function HomeScreen() {
           value={searchQuery}
           onChangeValue={setSearchQuery}
           onPressMap={() => router.push("/map")}
-          notificationCount={2} // Truyền số lượng thông báo vào đây
-          onPressNotification={() => router.push("/chat")} // Bấm vào chuông thì nhảy sang trang tin nhắn
+          notificationCount={unreadCount} 
+          onPressNotification={() => {
+            setUnreadCount(0); // Optional: reset count immediately or let the notifications screen handle it
+            router.push("/notifications");
+          }} 
         />
       </Animated.View>
 
@@ -92,9 +120,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: "#fff",
+    backgroundColor: "#0D1117",
     justifyContent: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: "#0D1117",
   },
 });

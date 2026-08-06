@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Alert, TextInput
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import {
   CONTRACT_STATUS_LABEL, CONTRACT_STATUS_COLOR, formatCurrency, formatDate,
   formatDurationUnit, getSignFlags, getSigningSessionStarted, extractServerMessage
 } from '@/utils/contract';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -23,6 +24,7 @@ interface UserProfile {
 export default function ContractDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [contract, setContract] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,19 +102,19 @@ export default function ContractDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#00A67E" />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!contract) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <Text style={{ color: '#6B7280' }}>Không tìm thấy hợp đồng.</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -228,12 +230,12 @@ export default function ContractDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chi tiết hợp đồng</Text>
         <View style={{ width: 24 }} />
@@ -399,7 +401,7 @@ export default function ContractDetailScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -407,11 +409,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 },
   spaceName: { fontSize: 20, fontWeight: 'bold', color: '#111827', flex: 1 },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -26,15 +26,11 @@ export default function AiEditorScreen() {
   if (checkingAuth) return null;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>AI Chỉnh ảnh</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.emptyState}>
@@ -46,19 +42,19 @@ export default function AiEditorScreen() {
       </View>
 
       <BottomNavBar active="ai" style={{ paddingBottom: insets.bottom, height: 60 + insets.bottom }} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#374151' },
   emptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20 },

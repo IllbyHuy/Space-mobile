@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, TextInput, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -9,11 +9,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { formatVnd, QUICK_AMOUNTS, MIN_DEPOSIT_AMOUNT } from '@/utils/wallet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
 export default function WalletDepositScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [amountText, setAmountText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -94,12 +96,12 @@ export default function WalletDepositScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nạp tiền vào ví</Text>
         <View style={{ width: 24 }} />
@@ -152,7 +154,7 @@ export default function WalletDepositScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -160,11 +162,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
   amountInputWrap: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',

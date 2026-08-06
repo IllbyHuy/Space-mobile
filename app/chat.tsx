@@ -233,13 +233,11 @@ export default function ChatScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
 
       {view === 'LIST' ? (
         <View style={{ flex: 1 }}>
-          <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButtonList}>
-              <Feather name="chevron-left" size={26} color="#111827" />
-            </TouchableOpacity>
+          <View style={styles.header}>
             <Text style={styles.headerTitle}>Tin nhắn của bạn</Text>
           </View>
 
@@ -272,7 +270,7 @@ export default function ChatScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-          <View style={[styles.chatHeader, { paddingTop: Math.max(insets.top, 20) + 10 }]}>
+          <View style={styles.chatHeader}>
             <TouchableOpacity onPress={() => { setView('LIST'); Keyboard.dismiss(); }} style={{ padding: 4 }}>
               <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
@@ -335,17 +333,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#0D1117',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB'
+    borderBottomColor: '#0D1117'
   },
   backButtonList: {
     marginRight: 12,
     padding: 4,
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
 
   emptyText: { textAlign: 'center', color: '#6B7280', marginTop: 40 },
   chatItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
@@ -354,7 +353,7 @@ const styles = StyleSheet.create({
   chatName: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 4 },
   chatPreview: { fontSize: 13, color: '#6B7280' },
 
-  chatHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E293B', padding: 16, paddingBottom: 16 },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0D1117', padding: 16, paddingBottom: 16 },
   chatHeaderInfo: { marginLeft: 12 },
   chatHeaderName: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
   chatHeaderStatus: { fontSize: 12, color: '#4ADE80', marginTop: 2 },

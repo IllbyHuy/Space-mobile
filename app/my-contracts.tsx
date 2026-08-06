@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   FlatList, ActivityIndicator, RefreshControl, TextInput, Linking
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import {
   CONTRACT_STATUS_LABEL, CONTRACT_STATUS_COLOR, getInitials,
   monthsBetween, monthsElapsed, getUrgencyColor
 } from '@/utils/contract';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -47,6 +48,7 @@ const statusOrder: Record<ContractStatus, number> = { Active: 0, Draft: 1, Expir
 
 export default function MyContractsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -299,12 +301,12 @@ export default function MyContractsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Người thuê & Hợp đồng</Text>
         <View style={{ width: 24 }} />
@@ -372,7 +374,7 @@ export default function MyContractsScreen() {
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#00A67E']} />}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -380,11 +382,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   summaryRow: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 8, backgroundColor: '#fff' },
   summaryCard: {
     flex: 1, backgroundColor: '#F9FAFB', borderRadius: 10, padding: 12,

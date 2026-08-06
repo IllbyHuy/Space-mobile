@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
+  View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, ScrollView
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
@@ -9,6 +9,7 @@ import { CameraView, useCameraPermissions, scanFromURLAsync } from 'expo-camera'
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseCccdQr, type CccdQrData } from '@/utils/parseCccdQr';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ScanState = 'idle' | 'scanning' | 'success' | 'error';
 type Source = 'camera' | 'upload';
@@ -17,6 +18,7 @@ const NO_QR_FOUND_MESSAGE = 'Không tìm thấy mã QR trong ảnh, vui lòng th
 
 export default function IdentityVerificationScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
 
   const [source, setSource] = useState<Source>('camera');
@@ -161,12 +163,12 @@ export default function IdentityVerificationScreen() {
     : [];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
+          <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Xác thực định danh</Text>
         <View style={{ width: 24 }} />
@@ -270,7 +272,7 @@ export default function IdentityVerificationScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -278,11 +280,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   description: { fontSize: 14, color: '#6B7280', marginBottom: 20, lineHeight: 20 },
   verifiedBox: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

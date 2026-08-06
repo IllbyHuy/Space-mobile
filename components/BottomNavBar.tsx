@@ -30,7 +30,7 @@ export const BottomNavBar = ({ active, style }: BottomNavBarProps) => {
             key={tab.key}
             style={styles.tabItem}
             onPress={() => {
-              if (!isActive) router.push(tab.path as any);
+              if (!isActive) router.replace(tab.path as any);
             }}
           >
             <Feather name={tab.icon} size={22} color={isActive ? '#00A67E' : '#65676B'} />

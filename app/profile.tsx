@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -83,15 +83,12 @@ export default function ProfileScreen() {
   const shortName = fullName.substring(0, 2).toUpperCase();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
+
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={24} color="#111827" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Cá nhân</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       {isLoading ? (
@@ -155,7 +152,7 @@ export default function ProfileScreen() {
       )}
 
       <BottomNavBar active="profile" style={{ paddingBottom: insets.bottom, height: 60 + insets.bottom }} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -163,12 +160,12 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   header: { 
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
-    borderBottomWidth: 1, borderBottomColor: '#E5E7EB'
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117',
+    borderBottomWidth: 1, borderBottomColor: '#0D1117'
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   profileSection: { 
     flexDirection: 'row', alignItems: 'center', 
     backgroundColor: '#fff', padding: 20, 

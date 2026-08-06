@@ -9,6 +9,7 @@ import { useRouter, Stack } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useFonts, PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { forceRegisterAndSavePushToken } from '@/hooks/usePushNotifications';
 
 const { height } = Dimensions.get('window');
 
@@ -161,6 +162,9 @@ export default function AuthScreen() {
         if (idMatch && idMatch[1]) {
           await AsyncStorage.setItem('current_user_id', idMatch[1]);
         }
+
+        // Đăng ký push token ngay sau khi login thành công
+        forceRegisterAndSavePushToken();
 
         // BỎ ALERT ĐI, ĐÁ THẲNG VÀO TRANG CHỦ LUÔN!
         router.replace('/');

@@ -29,7 +29,7 @@ export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotific
 
       {/* Nút Xem Bản đồ (Map) */}
       <TouchableOpacity style={styles.iconBtn} onPress={onPressMap}>
-        <Feather name="map" size={18} color="#00A67E" />
+        <Feather name="map" size={18} color="#fff" />
       </TouchableOpacity>
 
       {/* Nút Thông báo (Bell) */}
@@ -38,7 +38,7 @@ export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotific
         // Nếu chưa làm màn hình thông báo thì hiện Alert tạm
         onPress={onPressNotification || (() => Alert.alert('Thông báo', 'Tính năng xem chi tiết thông báo hệ thống đang phát triển.'))}
       >
-        <Feather name="bell" size={18} color="#00A67E" />
+        <Feather name="bell" size={18} color="#fff" />
         {notificationCount > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
@@ -53,7 +53,7 @@ export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotific
         style={styles.iconBtn}
         onPress={onPressFilter || (() => Alert.alert('Sắp ra mắt', 'Bộ lọc theo Giá, Diện tích, Khu vực... đang được phát triển.'))}
       >
-        <Feather name="sliders" size={18} color="#00A67E" />
+        <Feather name="sliders" size={18} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -65,16 +65,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#fff',
+    backgroundColor: '#0D1117',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#0D1117',
     gap: 8, 
   },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#1F2937', // dark gray for input background
     paddingHorizontal: 12,
     height: 40,
     borderRadius: 20,
@@ -83,13 +83,13 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 14,
-    color: '#111827',
+    color: '#fff',
   },
   iconBtn: {
     width: 38, // Bóp nhỏ lại 1 chút xíu để vừa 3 nút trên màn hình nhỏ
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#ECFDF5', 
+    backgroundColor: '#1F2937', 
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: '#fff',
+    borderColor: '#0D1117',
   },
   badgeText: {
     color: '#fff',
