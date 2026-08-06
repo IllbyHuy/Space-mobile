@@ -1,0 +1,134 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useRouter, Stack } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
+
+export default function MySpacesScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [spaces, setSpaces] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadAuth = async () => {
+      const tk = await AsyncStorage.getItem('portal_token');
+      const uid = await AsyncStorage.getItem('current_user_id');
+      setToken(tk);
+      setCurrentUserId(uid);
+    };
+    loadAuth();
+  }, []);
+
+  useEffect(() => {
+    if (token && currentUserId) {
+      fetchSpaces();
+    }
+  }, [token, currentUserId]);
+
+  const fetchSpaces = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/Space/GetAll?OwnerId=${currentUserId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSpaces(Array.isArray(data) ? data : (data?.data || data?.items || []));
+      }
+    } catch (error) {
+      console.error("Lỗi tải danh sách mặt bằng:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderItem = ({ item }: { item: any }) => (
+    <View style={styles.card}>
+      <View style={styles.cardInfo}>
+        <Text style={styles.spaceTitle}>{item.name}</Text>
+        <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}</Text>
+        <Text style={styles.spaceDetail}><Feather name="maximize" size={14} color="#6B7280" /> {item.acreage || 0} m²</Text>
+      </View>
+      <View style={styles.cardStatus}>
+        <View style={[styles.statusBadge, item.status === 'Available' ? styles.statusAvailable : styles.statusPending]}>
+          <Text style={[styles.statusText, item.status === 'Available' ? styles.statusAvailableText : styles.statusPendingText]}>
+            {item.status === 'Available' ? 'Trống' : item.status || 'Đang xử lý'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={{ height: insets.top, backgroundColor: '#0D1117' }} />
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Mặt bằng của tôi</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/listing/create-space')}>
+          <Feather name="plus" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#00A67E" />
+        </View>
+      ) : spaces.length === 0 ? (
+        <View style={styles.center}>
+          <Feather name="layout" size={48} color="#D1D5DB" />
+          <Text style={styles.emptyText}>Bạn chưa có mặt bằng nào</Text>
+          <TouchableOpacity style={styles.createBtn} onPress={() => router.push('/listing/create-space')}>
+            <Text style={styles.createBtnText}>Tạo mặt bằng mới</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={spaces}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: 16 }}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#0D1117'
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  addBtn: { padding: 4 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  emptyText: { fontSize: 16, color: '#6B7280', marginTop: 16, marginBottom: 24, textAlign: 'center' },
+  createBtn: { backgroundColor: '#00A67E', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
+  createBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  card: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2
+  },
+  cardInfo: { flex: 1, paddingRight: 12 },
+  spaceTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
+  spaceDetail: { fontSize: 14, color: '#6B7280', marginBottom: 4 },
+  cardStatus: { alignItems: 'flex-end' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  statusText: { fontSize: 12, fontWeight: 'bold' },
+  statusAvailable: { backgroundColor: '#D1FAE5' },
+  statusAvailableText: { color: '#059669' },
+  statusPending: { backgroundColor: '#FEF3C7' },
+  statusPendingText: { color: '#D97706' },
+});

@@ -56,8 +56,14 @@ export default function ListingDetailScreen() {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingOfferedPrice, setBookingOfferedPrice] = useState("");
   const [bookingDuration, setBookingDuration] = useState("1");
+  const [bookingDurationUnit, setBookingDurationUnit] = useState("Months"); // Web default
   const [bookingPurpose, setBookingPurpose] = useState("");
   const [bookingNote, setBookingNote] = useState("");
+  // Default to tomorrow to pass backend validation
+  const [bookingStartDate, setBookingStartDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -231,17 +237,17 @@ export default function ListingDetailScreen() {
 
     setIsSubmittingBooking(true);
     try {
-      const isHourly =
-        listing.listingType === "SharedSpace" || listing.isHourly === true;
       const payload = {
         listingId: Number(listing.id || listing.Id),
         offeredPrice: Number(bookingOfferedPrice),
         duration: Number(bookingDuration),
-        durationUnit: isHourly ? "Hour" : "Month",
+        durationUnit: bookingDurationUnit,
         purpose: bookingPurpose.trim(),
         note: bookingNote.trim(),
-        expectedStartDate: new Date().toISOString(),
+        expectedStartDate: new Date(bookingStartDate).toISOString(),
       };
+
+      console.log('[BookingRequest] payload:', JSON.stringify(payload));
 
       const response = await fetch(
         "https://flexi-space-capstone-project.onrender.com/api/PrimaryBookingRequest/Create",
@@ -263,11 +269,13 @@ export default function ListingDetailScreen() {
         );
       } else {
         const rawText = await response.text();
-        let err: any = {};
+        console.error('[BookingRequest] Error response:', response.status, rawText);
+        let errMsg = 'Có lỗi xảy ra khi gửi yêu cầu.';
         try {
-          err = rawText ? JSON.parse(rawText) : {};
+          const errObj = rawText ? JSON.parse(rawText) : {};
+          errMsg = errObj.message || errObj.title || errObj.detail || JSON.stringify(errObj.errors || errObj);
         } catch {}
-        Alert.alert("Lỗi", err.message || "Có lỗi xảy ra khi gửi yêu cầu.");
+        Alert.alert("Lỗi", errMsg);
       }
     } catch (error) {
       console.error("Lỗi API Booking:", error);
@@ -553,15 +561,40 @@ export default function ListingDetailScreen() {
                 placeholder="Nhập giá đề nghị"
               />
 
-              <Text style={styles.modalLabel}>
-                Thời hạn thuê ({isHourly ? "giờ" : "tháng"})
-              </Text>
+              <Text style={styles.modalLabel}>Thời lượng thuê</Text>
               <TextInput
                 style={styles.modalInput}
                 keyboardType="numeric"
                 value={bookingDuration}
                 onChangeText={setBookingDuration}
                 placeholder="Số lượng"
+              />
+
+              <Text style={styles.modalLabel}>Đơn vị</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                {(['Days', 'Months', 'Years'] as const).map(unit => (
+                  <TouchableOpacity
+                    key={unit}
+                    onPress={() => setBookingDurationUnit(unit)}
+                    style={{
+                      flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+                      backgroundColor: bookingDurationUnit === unit ? '#00A67E' : '#F3F4F6',
+                      borderWidth: 1, borderColor: bookingDurationUnit === unit ? '#00A67E' : '#D1D5DB',
+                    }}
+                  >
+                    <Text style={{ color: bookingDurationUnit === unit ? '#fff' : '#374151', fontWeight: '600', fontSize: 14 }}>
+                      {unit === 'Days' ? 'Ngày' : unit === 'Months' ? 'Tháng' : 'Năm'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.modalLabel}>Ngày dự kiến bắt đầu (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={bookingStartDate}
+                onChangeText={setBookingStartDate}
+                placeholder="VD: 2024-12-01"
               />
 
               <Text style={styles.modalLabel}>Mục đích sử dụng</Text>

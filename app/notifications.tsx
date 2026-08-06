@@ -98,7 +98,10 @@ export default function NotificationsScreen() {
 
   const handleNotificationPress = (item: NotificationItem) => {
     // Navigate based on type if needed
-    if (item.type === 'Booking' && item.referenceId) {
+    const t = item.title?.toLowerCase() || '';
+    if (t.includes('yêu cầu') || item.type === 'BookingRequest') {
+      router.push('/booking-requests');
+    } else if (item.type === 'Booking' && item.referenceId) {
       router.push(`/contract/${item.referenceId}` as any);
     }
     // Implement mark as read API here if backend supports it

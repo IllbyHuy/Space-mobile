@@ -66,6 +66,9 @@ export default function ChatScreen() {
     return String(rLessorId) === String(currentUserId) ? "Khách thuê" : "Chủ nhà";
   };
 
+  const isLessor = activeChat && (String(activeChat.lessorId) === String(currentUserId) || String(activeChat.LessorId) === String(currentUserId));
+
+
   // HÀM DÙNG CHUNG: fetch lại danh sách phòng chat, cập nhật state,
   // và tự động Join (qua SignalR) các phòng nào chưa từng Join - y hệt bản web.
   const fetchAndSyncConversations = async () => {
@@ -280,6 +283,15 @@ export default function ChatScreen() {
                 {connection ? "Đã kết nối" : "Đang kết nối..."}
               </Text>
             </View>
+            <View style={{ flex: 1 }} />
+            {isLessor && (
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/contract/contract-create', params: { activeChat: JSON.stringify(activeChat) } })}
+                style={{ padding: 8, backgroundColor: '#00A67E', borderRadius: 8 }}
+              >
+                <Feather name="file-text" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           <FlatList

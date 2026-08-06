@@ -46,13 +46,39 @@ export default function ManageSpacesScreen() {
           <Feather name="chevron-right" size={20} color="#D1D5DB" />
         </TouchableOpacity>
 
-        <View style={styles.emptyState}>
-          <Feather name="briefcase" size={40} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>Sắp ra mắt</Text>
-          <Text style={styles.emptyText}>
-            Quản lý mặt bằng, tin đăng, người thuê và lịch cho thuê lại đang được phát triển cho ứng dụng di động.
-          </Text>
-        </View>
+        <TouchableOpacity style={styles.menuCard} onPress={() => router.push('/booking-requests')}>
+          <View style={[styles.menuIconWrap, { backgroundColor: '#EEF2FF' }]}>
+            <Feather name="inbox" size={20} color="#6366F1" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuCardTitle}>Yêu cầu thuê</Text>
+            <Text style={styles.menuCardSubtitle}>Xem và duyệt các yêu cầu thuê mặt bằng</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color="#D1D5DB" />
+        </TouchableOpacity>
+
+
+        <TouchableOpacity style={styles.menuCard} onPress={() => router.push('/listing/my-spaces')}>
+          <View style={[styles.menuIconWrap, { backgroundColor: '#FDF2F8' }]}>
+            <Feather name="layout" size={20} color="#DB2777" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuCardTitle}>Mặt bằng của tôi</Text>
+            <Text style={styles.menuCardSubtitle}>Quản lý các mặt bằng bạn đang sở hữu</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color="#D1D5DB" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuCard} onPress={() => router.push('/listing/my-listings')}>
+          <View style={[styles.menuIconWrap, { backgroundColor: '#FEF3C7' }]}>
+            <Feather name="list" size={20} color="#D97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuCardTitle}>Tin đăng của tôi</Text>
+            <Text style={styles.menuCardSubtitle}>Quản lý các tin cho thuê mặt bằng</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color="#D1D5DB" />
+        </TouchableOpacity>
       </View>
 
       <BottomNavBar active="manage" style={{ paddingBottom: insets.bottom, height: 60 + insets.bottom }} />
