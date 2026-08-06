@@ -3,17 +3,20 @@ import { Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-export type BottomNavTab = 'home' | 'manage' | 'ai' | 'profile';
+// 1. Thêm 'chat' vào type
+export type BottomNavTab = 'home' | 'manage' | 'chat' | 'ai' | 'profile';
 
 type BottomNavBarProps = {
   active: BottomNavTab;
   style?: any;
 };
 
+// 2. Thêm tab Tin nhắn vào mảng TABS
 const TABS: { key: BottomNavTab; label: string; icon: keyof typeof Feather.glyphMap; path: string }[] = [
   { key: 'home', label: 'Trang chủ', icon: 'home', path: '/' },
   { key: 'manage', label: 'Quản lý', icon: 'briefcase', path: '/manage-spaces' },
-  { key: 'ai', label: 'AI Editor', icon: 'image', path: '/ai-editor' },
+  { key: 'chat', label: 'Tin nhắn', icon: 'message-circle', path: '/chat' },
+  { key: 'ai', label: 'AI', icon: 'image', path: '/ai-editor' }, 
   { key: 'profile', label: 'Cá nhân', icon: 'user', path: '/profile' },
 ];
 
