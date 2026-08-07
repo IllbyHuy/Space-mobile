@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
+
+const getPicUrl = (pic: any): string | null => {
+  if (!pic) return null;
+  if (typeof pic === 'string') return pic;
+  return pic.imageUrl || pic.url || null;
+};
 
 export default function MyListingsScreen() {
   const router = useRouter();
@@ -34,17 +40,34 @@ export default function MyListingsScreen() {
   const fetchListings = async () => {
     setIsLoading(true);
     try {
+      // STEP 1: Fetch user's own spaces (like web OwnerListings.tsx)
+      const spaceRes = await fetch(
+        `${API_BASE}/api/Space/GetAll?OwnerId=${encodeURIComponent(currentUserId!)}`,
+        { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
+      );
+      let mySpaceIds: any[] = [];
+      if (spaceRes.ok) {
+        const spaceData = await spaceRes.json();
+        const mySpaces = Array.isArray(spaceData) ? spaceData : (spaceData?.data || spaceData?.items || []);
+        mySpaceIds = mySpaces.map((s: any) => s.id || s.Id);
+      }
+
+      // STEP 2: Fetch all listings
       const res = await fetch(`${API_BASE}/api/Listing/GetAll`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
       });
       if (res.ok) {
         const data = await res.json();
         const allListings = Array.isArray(data) ? data : (data?.data || data?.items || []);
         
-        // Filter like web: my shared listings or normal listings
-        const myListings = allListings.filter((l: any) => 
-          String(l.ownerId || l.creatorId || l.createdBy || l.lesseeId) === String(currentUserId)
-        );
+        // STEP 3: Filter by spaceId match (same logic as web)
+        const myListings = allListings.filter((l: any) => {
+          const spId = l.spaceId || l.SpaceId;
+          return mySpaceIds.includes(spId) ||
+            String(l.ownerId || '') === String(currentUserId) ||
+            String(l.creatorId || '') === String(currentUserId) ||
+            String(l.createdBy || '') === String(currentUserId);
+        });
         
         setListings(myListings);
       }
@@ -56,17 +79,38 @@ export default function MyListingsScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.card}>
-      <View style={styles.cardInfo}>
-        <Text style={styles.title}>{item.name || item.title || 'Tin đăng không tên'}</Text>
-        <Text style={styles.detail}><Feather name="dollar-sign" size={14} color="#6B7280" /> {item.price?.toLocaleString('vi-VN') || 0} VND / tháng</Text>
-        <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
-      </View>
-      <View style={styles.cardStatus}>
-        <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft]}>
-          <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText]}>
-            {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
-          </Text>
+    <View style={[styles.card, { flexDirection: 'row' }]}>
+      {item.listingPictures && item.listingPictures.length > 0 && getPicUrl(item.listingPictures[0]) ? (
+        <Image 
+          source={{ uri: getPicUrl(item.listingPictures[0])! }} 
+          style={{ width: 100, height: 100, borderRadius: 8, marginRight: 12, backgroundColor: '#1F2937' }} 
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={{ width: 100, height: 100, borderRadius: 8, marginRight: 12, backgroundColor: '#1F2937', justifyContent: 'center', alignItems: 'center' }}>
+          <Feather name="image" size={24} color="#6B7280" />
+        </View>
+      )}
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        <View>
+          <Text style={styles.title} numberOfLines={2}>{item.name || item.title || 'Tin đăng không tên'}</Text>
+          <Text style={styles.detail}><Feather name="dollar-sign" size={14} color="#6B7280" /> {item.price?.toLocaleString('vi-VN') || 0} VND / tháng</Text>
+          <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+          <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
+            <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText, { fontSize: 10 }]}>
+              {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push(`/listing/${item.id || item.Id}`)}>
+              <Feather name="eye" size={20} color="#00A67E" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push(`/listing/edit-listing?id=${item.id || item.Id}`)}>
+              <Feather name="edit" size={20} color="#00A67E" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>

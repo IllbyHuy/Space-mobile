@@ -51,7 +51,8 @@
         {
           "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để tải ảnh CCCD lên."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

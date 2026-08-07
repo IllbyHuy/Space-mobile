@@ -185,6 +185,30 @@ export default function CreateSpaceScreen() {
     );
   };
 
+  const cleanAddress = (text: string) => {
+    if (!text) return '';
+    return text.replace(/(Xã|Phường|Thị trấn|Huyện|Quận|Thành phố|Tỉnh|TP\.?)\s+/gi, '').trim();
+  };
+
+  const tryGeocode = async (query: string): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=1&countrycodes=vn&email=contact@yourdomain.com`;
+      const geoRes = await fetch(url, {
+        headers: { 'Accept-Language': 'vi' }
+      });
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (Array.isArray(geoData) && geoData.length > 0) {
+          return { lat: parseFloat(geoData[0].lat), lng: parseFloat(geoData[0].lon) };
+        }
+      }
+      return null;
+    } catch (err) {
+      console.error(`[Geocode] Lỗi: "${query}"`, err);
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name.trim() || !address.trim() || !area.trim()) {
       return Alert.alert('Lỗi', 'Vui lòng điền đủ tên, địa chỉ và diện tích!');
@@ -196,6 +220,35 @@ export default function CreateSpaceScreen() {
 
     setIsSubmitting(true);
 
+    let lat = 0;
+    let lng = 0;
+    const cleanWard = cleanAddress(wardLabel);
+    const cleanDistrict = cleanAddress(districtLabel);
+    const cleanProvince = cleanAddress(provinceLabel);
+
+    const queriesToTry = [
+      `${address}, ${cleanWard}, ${cleanDistrict}, ${cleanProvince}`,
+      `${cleanWard}, ${cleanDistrict}, ${cleanProvince}`,
+      `${cleanDistrict}, ${cleanProvince}`,
+      cleanProvince
+    ].filter(q => q && q.trim() !== ',' && q.replace(/,/g, '').trim() !== '');
+
+    let found = false;
+    for (let i = 0; i < queriesToTry.length; i++) {
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await tryGeocode(queriesToTry[i]);
+      if (result) {
+        lat = result.lat;
+        lng = result.lng;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      console.warn("Không xác định được toạ độ chính xác cho địa chỉ này (lưu tạm 0,0).");
+    }
+
     const city = [wardLabel, districtLabel, provinceLabel].filter(Boolean).join(', ');
 
     const payload = {
@@ -204,8 +257,8 @@ export default function CreateSpaceScreen() {
       city,
       area: Number(area) || 0,
       isActive: true,
-      latitude: 0,
-      longitude: 0,
+      latitude: lat,
+      longitude: lng,
       amenities: selectedAmenities.map(am => ({
         name: am,
         quantity: 1,

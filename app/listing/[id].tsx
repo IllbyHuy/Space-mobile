@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const { width } = Dimensions.get("window");
 const FALLBACK_IMAGE =
@@ -51,6 +52,7 @@ export default function ListingDetailScreen() {
   const [listing, setListing] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
@@ -59,6 +61,7 @@ export default function ListingDetailScreen() {
   const [bookingDurationUnit, setBookingDurationUnit] = useState("Months"); // Web default
   const [bookingPurpose, setBookingPurpose] = useState("");
   const [bookingNote, setBookingNote] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
   // Default to tomorrow to pass backend validation
   const [bookingStartDate, setBookingStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -69,7 +72,9 @@ export default function ListingDetailScreen() {
     const fetchDetail = async () => {
       try {
         const storedToken = await AsyncStorage.getItem("portal_token");
+        const storedUserId = await AsyncStorage.getItem("current_user_id");
         setToken(storedToken);
+        setCurrentUserId(storedUserId);
 
         const [spaceRes, listingRes] = await Promise.all([
           fetch(
@@ -117,6 +122,10 @@ export default function ListingDetailScreen() {
                 parentSpace?.spaceAllowedCategories ||
                 [],
             };
+            // Store the parent space's ownerId for owner detection
+            if (parentSpace) {
+              merged._spaceOwnerId = parentSpace.ownerId || parentSpace.OwnerId || parentSpace.creatorId || parentSpace.createdBy;
+            }
             setListing(merged);
             if (merged.price) setBookingOfferedPrice(merged.price.toString());
           }
@@ -517,22 +526,71 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* STICKY BOTTOM BAR */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 16 }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bottomPrice}>
-            {listing.price
-              ? `${listing.price.toLocaleString("vi-VN")} đ`
-              : "Thỏa thuận"}
-            <Text style={styles.bottomUnit}>
-              {isHourly ? "/giờ" : "/tháng"}
-            </Text>
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.bookBtn} onPress={openBookingModal}>
-          <Text style={styles.bookBtnText}>Gửi yêu cầu</Text>
-        </TouchableOpacity>
-      </View>
+      {/* STICKY BOTTOM BAR - Owner vs Visitor */}
+      {(() => {
+        const isOwner = currentUserId && listing && (
+          String(listing._spaceOwnerId || '') === String(currentUserId) ||
+          String(listing.ownerId || '') === String(currentUserId) ||
+          String(listing.creatorId || '') === String(currentUserId) ||
+          String(listing.createdBy || '') === String(currentUserId)
+        );
+        if (isOwner) {
+          return (
+            <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 16 }]}>
+              <TouchableOpacity
+                style={[styles.bookBtn, { flex: 1, marginRight: 8, backgroundColor: '#00A67E', flexDirection: 'row', justifyContent: 'center' }]}
+                onPress={() => router.push(`/listing/edit-listing?id=${listing.id || listing.Id}`)}
+              >
+                <Feather name="edit" size={18} color="#fff" />
+                <Text style={[styles.bookBtnText, { marginLeft: 6 }]}>Chỉnh sửa</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.bookBtn, { flex: 1, backgroundColor: '#EF4444', flexDirection: 'row', justifyContent: 'center' }]}
+                onPress={() => {
+                  Alert.alert('Xác nhận', 'Bạn có chắc muốn xóa bài đăng này?', [
+                    { text: 'Hủy', style: 'cancel' },
+                    {
+                      text: 'Xóa', style: 'destructive', onPress: async () => {
+                        try {
+                          const res = await fetch(
+                            `https://flexi-space-capstone-project.onrender.com/api/Listing/Delete/${listing.id || listing.Id}`,
+                            { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
+                          );
+                          if (res.ok) {
+                            Alert.alert('Thành công', 'Đã xóa bài đăng!', [{ text: 'OK', onPress: () => router.back() }]);
+                          } else {
+                            Alert.alert('Lỗi', 'Không thể xóa bài đăng.');
+                          }
+                        } catch (e) {
+                          Alert.alert('Lỗi', 'Đã xảy ra lỗi khi xóa.');
+                        }
+                      }
+                    },
+                  ]);
+                }}
+              >
+                <Feather name="trash-2" size={18} color="#fff" />
+                <Text style={[styles.bookBtnText, { marginLeft: 6 }]}>Xóa</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+        return (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 16 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bottomPrice}>
+                {listing?.price ? `${listing.price.toLocaleString("vi-VN")} đ` : "Thỏa thuận"}
+                <Text style={styles.bottomUnit}>
+                  {isHourly ? "/giờ" : "/tháng"}
+                </Text>
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.bookBtn} onPress={openBookingModal}>
+              <Text style={styles.bookBtnText}>Gửi yêu cầu</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })()}
 
       <Modal
         visible={isBookingModalOpen}
@@ -590,12 +648,64 @@ export default function ListingDetailScreen() {
               </View>
 
               <Text style={styles.modalLabel}>Ngày dự kiến bắt đầu (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={bookingStartDate}
-                onChangeText={setBookingStartDate}
-                placeholder="VD: 2024-12-01"
-              />
+              {Platform.OS === 'web' ? (
+                React.createElement('input', {
+                  type: 'date',
+                  value: bookingStartDate || '',
+                  min: new Date().toISOString().split("T")[0],
+                  onChange: (e: any) => setBookingStartDate(e.target.value),
+                  style: { padding: '10px', borderRadius: '8px', border: '1px solid #D1D5DB', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
+                })
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={[styles.modalInput, { justifyContent: "center" }]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={{ color: bookingStartDate ? "#111827" : "#9CA3AF" }}>
+                      {bookingStartDate || "Chọn ngày"}
+                    </Text>
+                  </TouchableOpacity>
+                  {Platform.OS === 'android' && showDatePicker && (
+                    <DateTimePicker
+                      value={new Date(bookingStartDate || Date.now())}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(false);
+                        if (selectedDate) {
+                          setBookingStartDate(selectedDate.toISOString().split("T")[0]);
+                        }
+                      }}
+                    />
+                  )}
+                  {Platform.OS === 'ios' && (
+                    <Modal visible={showDatePicker} transparent animationType="slide">
+                      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                        <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
+                          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                            <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                              <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <DateTimePicker
+                            value={new Date(bookingStartDate || Date.now())}
+                            mode="date"
+                            display="spinner"
+                            minimumDate={new Date()}
+                            onChange={(event, selectedDate) => {
+                              if (selectedDate) {
+                                setBookingStartDate(selectedDate.toISOString().split("T")[0]);
+                              }
+                            }}
+                          />
+                        </View>
+                      </View>
+                    </Modal>
+                  )}
+                </>
+              )}
 
               <Text style={styles.modalLabel}>Mục đích sử dụng</Text>
               <TextInput

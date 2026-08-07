@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, ActivityIndicator, Modal, FlatList
+  Alert, ActivityIndicator, Modal, FlatList, Image, Platform
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
@@ -38,6 +40,11 @@ export default function CreateListingScreen() {
   const [price, setPrice] = useState('');
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
+  
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -72,6 +79,22 @@ export default function CreateListingScreen() {
   }, [token, currentUserId]);
 
   const selectedSpace = mySpaces.find(s => (s.id || s.Id) === spaceId);
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedImages((prev) => [...prev, ...result.assets]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     if (spaceId === '') {
@@ -131,6 +154,51 @@ export default function CreateListingScreen() {
           errMsg = parsed.message || parsed.title || parsed.detail || errMsg;
         } catch {}
         throw new Error(errMsg);
+      }
+
+      const resText = await res.text();
+      let createdListingId;
+      try {
+        const resData = JSON.parse(resText);
+        createdListingId = resData.id || resData.data?.id || resData;
+      } catch {
+        createdListingId = resText;
+      }
+
+      if (selectedImages.length > 0 && createdListingId) {
+        const formData = new FormData();
+        for (let i = 0; i < selectedImages.length; i++) {
+          const img = selectedImages[i];
+          if (Platform.OS === 'web') {
+            const fetchRes = await fetch(img.uri);
+            const blob = await fetchRes.blob();
+            formData.append('file', blob, img.fileName || `image_${i}.jpg`);
+          } else {
+            const filename = img.fileName || img.uri.split('/').pop() || `image_${i}.jpg`;
+            const type = img.mimeType || 'image/jpeg';
+            formData.append('file', {
+              uri: img.uri,
+              name: filename,
+              type,
+            } as any);
+          }
+        }
+        formData.append('listingId', createdListingId.toString());
+
+        const picRes = await fetch(`${API_BASE}/api/Picture`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: '*/*',
+          },
+          body: formData,
+        });
+
+        if (!picRes.ok) {
+          console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
+          Alert.alert('Cảnh báo', 'Tạo bài đăng thành công nhưng tải ảnh lên thất bại!');
+          return router.back();
+        }
       }
 
       Alert.alert('Thành công', 'Đã tạo bài đăng thành công!', [
@@ -225,23 +293,145 @@ export default function CreateListingScreen() {
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
             <Text style={styles.label}>Từ ngày</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              value={allowedStartTime}
-              onChangeText={setAllowedStartTime}
-            />
+            {Platform.OS === 'web' ? (
+              React.createElement('input', {
+                type: 'date',
+                value: allowedStartTime || '',
+                onChange: (e: any) => setAllowedStartTime(e.target.value),
+                style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
+              })
+            ) : (
+              <>
+                <TouchableOpacity 
+                  style={[styles.input, { justifyContent: 'center' }]} 
+                  onPress={() => setShowStartDatePicker(true)}
+                >
+                  <Text style={{ color: allowedStartTime ? '#111827' : '#9CA3AF' }}>
+                    {allowedStartTime || "Chọn ngày"}
+                  </Text>
+                </TouchableOpacity>
+                {Platform.OS === 'android' && showStartDatePicker && (
+                  <DateTimePicker
+                    value={new Date(allowedStartTime || Date.now())}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowStartDatePicker(false);
+                      if (selectedDate) {
+                        setAllowedStartTime(selectedDate.toISOString().slice(0, 10));
+                      }
+                    }}
+                  />
+                )}
+                {Platform.OS === 'ios' && (
+                  <Modal visible={showStartDatePicker} transparent animationType="slide">
+                    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                      <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                          <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                            <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <DateTimePicker
+                          value={new Date(allowedStartTime || Date.now())}
+                          mode="date"
+                          display="spinner"
+                          onChange={(event, selectedDate) => {
+                            if (selectedDate) {
+                              setAllowedStartTime(selectedDate.toISOString().slice(0, 10));
+                            }
+                          }}
+                        />
+                      </View>
+                    </View>
+                  </Modal>
+                )}
+              </>
+            )}
           </View>
           <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
             <Text style={styles.label}>Đến ngày</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              value={allowedEndTime}
-              onChangeText={setAllowedEndTime}
-            />
+            {Platform.OS === 'web' ? (
+              React.createElement('input', {
+                type: 'date',
+                value: allowedEndTime || '',
+                min: allowedStartTime || '',
+                onChange: (e: any) => setAllowedEndTime(e.target.value),
+                style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
+              })
+            ) : (
+              <>
+                <TouchableOpacity 
+                  style={[styles.input, { justifyContent: 'center' }]} 
+                  onPress={() => setShowEndDatePicker(true)}
+                >
+                  <Text style={{ color: allowedEndTime ? '#111827' : '#9CA3AF' }}>
+                    {allowedEndTime || "Chọn ngày"}
+                  </Text>
+                </TouchableOpacity>
+                {Platform.OS === 'android' && showEndDatePicker && (
+                  <DateTimePicker
+                    value={new Date(allowedEndTime || Date.now())}
+                    mode="date"
+                    display="default"
+                    minimumDate={new Date(allowedStartTime || Date.now())}
+                    onChange={(event, selectedDate) => {
+                      setShowEndDatePicker(false);
+                      if (selectedDate) {
+                        setAllowedEndTime(selectedDate.toISOString().slice(0, 10));
+                      }
+                    }}
+                  />
+                )}
+                {Platform.OS === 'ios' && (
+                  <Modal visible={showEndDatePicker} transparent animationType="slide">
+                    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                      <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                          <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
+                            <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <DateTimePicker
+                          value={new Date(allowedEndTime || Date.now())}
+                          mode="date"
+                          display="spinner"
+                          minimumDate={new Date(allowedStartTime || Date.now())}
+                          onChange={(event, selectedDate) => {
+                            if (selectedDate) {
+                              setAllowedEndTime(selectedDate.toISOString().slice(0, 10));
+                            }
+                          }}
+                        />
+                      </View>
+                    </View>
+                  </Modal>
+                )}
+              </>
+            )}
           </View>
         </View>
+
+        {/* Hình ảnh */}
+        <Text style={styles.sectionTitle}>Hình ảnh bài đăng (Tùy chọn)</Text>
+        <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
+          <Feather name="image" size={20} color="#00A67E" />
+          <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
+        </TouchableOpacity>
+        
+        {selectedImages.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+            {selectedImages.map((img, idx) => (
+              <View key={idx} style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
+                  <Feather name="x" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
 
         {/* Submit */}
         <TouchableOpacity
@@ -322,6 +512,21 @@ const styles = StyleSheet.create({
     fontSize: 15, color: '#111827',
   },
   hintText: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+
+  pickImageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
+    borderStyle: 'dashed', borderRadius: 8, padding: 16, marginBottom: 12, gap: 8
+  },
+  pickImageText: { color: '#00A67E', fontWeight: '500' },
+  imagePreviewContainer: { flexDirection: 'row', marginBottom: 16 },
+  imagePreviewWrapper: { marginRight: 12, position: 'relative' },
+  imagePreview: { width: 80, height: 80, borderRadius: 8 },
+  removeImageBtn: {
+    position: 'absolute', top: -6, right: -6, backgroundColor: 'red',
+    borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff'
+  },
 
   pickerBtn: {
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#D1D5DB',

@@ -4,6 +4,8 @@ import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Platform } from 'react-native';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -51,6 +53,7 @@ export default function ContractCreateScreen() {
   const [showSpacePicker, setShowSpacePicker] = useState(false);
   const [showRequestPicker, setShowRequestPicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -288,11 +291,61 @@ export default function ContractCreateScreen() {
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Ngày bắt đầu (YYYY-MM-DD) *</Text>
-          <TextInput
-            style={styles.input}
-            value={contractData.startDate}
-            onChangeText={val => setContractData({ ...contractData, startDate: val })}
-          />
+          {Platform.OS === 'web' ? (
+            React.createElement('input', {
+              type: 'date',
+              value: contractData.startDate || '',
+              onChange: (e: any) => setContractData({ ...contractData, startDate: e.target.value }),
+              style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
+            })
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.input, { justifyContent: 'center' }]}
+                onPress={() => setShowStartDatePicker(true)}
+              >
+                <Text style={{ color: contractData.startDate ? '#111827' : '#9CA3AF' }}>
+                  {contractData.startDate || 'Chọn ngày'}
+                </Text>
+              </TouchableOpacity>
+              {Platform.OS === 'android' && showStartDatePicker && (
+                <DateTimePicker
+                  value={new Date(contractData.startDate || Date.now())}
+                  mode="date"
+                  display="default"
+                  onChange={(event, selectedDate) => {
+                    setShowStartDatePicker(false);
+                    if (selectedDate) {
+                      setContractData({ ...contractData, startDate: selectedDate.toISOString().slice(0, 10) });
+                    }
+                  }}
+                />
+              )}
+              {Platform.OS === 'ios' && (
+                <Modal visible={showStartDatePicker} transparent animationType="slide">
+                  <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                        <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                          <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <DateTimePicker
+                        value={new Date(contractData.startDate || Date.now())}
+                        mode="date"
+                        display="spinner"
+                        onChange={(event, selectedDate) => {
+                          if (selectedDate) {
+                            setContractData({ ...contractData, startDate: selectedDate.toISOString().slice(0, 10) });
+                          }
+                        }}
+                      />
+                    </View>
+                  </View>
+                </Modal>
+              )}
+            </>
+          )}
         </View>
 
         <View style={styles.row}>
