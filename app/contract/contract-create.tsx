@@ -6,6 +6,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
+import {
+  CONTRACT_TEMPLATES,
+  fillContractTemplate,
+  formatSchedule,
+  renderMergeValue,
+  splitContractHeaderBody,
+  ContractMergeData,
+  ContractSchedule,
+} from '@/utils/contractTemplates';
+
+interface UserProfile {
+  userId: string;
+  fullName: string;
+  citizenIDNumber: string;
+  dateOfIssue: string;
+}
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -54,6 +70,19 @@ export default function ContractCreateScreen() {
   const [showRequestPicker, setShowRequestPicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  
+  // Temporary state for adding a new schedule
+  const [newSchedule, setNewSchedule] = useState<ContractSchedule>({ dayOfWeek: 'Monday', startTime: '08:00', endTime: '22:00' });
+  const [showDayPicker, setShowDayPicker] = useState(false);
+  
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  const [lessorProfile, setLessorProfile] = useState<UserProfile | null>(null);
+  const [lesseeProfile, setLesseeProfile] = useState<UserProfile | null>(null);
+  const lastRenderedRef = React.useRef<Record<string, string>>({});
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -72,6 +101,32 @@ export default function ContractCreateScreen() {
   }, [token, currentUserId]);
 
   useEffect(() => {
+    if (!token) return;
+    if (!lessorId && !lesseeId) return;
+
+    const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
+      try {
+        const res = await fetch(`${API_BASE}/api/Profile/user/${userId}`, {
+          headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return {
+          userId: data.userId,
+          fullName: data.fullName || '',
+          citizenIDNumber: data.citizenIDNumber || data.identityCardNumber || '',
+          dateOfIssue: data.dateOfIssue || '',
+        };
+      } catch (err) {
+        return null;
+      }
+    };
+
+    if (lessorId) fetchProfile(String(lessorId)).then(setLessorProfile);
+    if (lesseeId) fetchProfile(String(lesseeId)).then(setLesseeProfile);
+  }, [token, lessorId, lesseeId]);
+
+  useEffect(() => {
     if (existingContract) {
       setContractData({
         spaceId: existingContract.spaceId ? String(existingContract.spaceId) : '',
@@ -86,8 +141,88 @@ export default function ContractCreateScreen() {
         businessPurpose: existingContract.businessPurpose || '',
         contractSchedules: existingContract.contractSchedules || [],
       });
+    } else {
+      setSelectedTemplateId('');
+      lastRenderedRef.current = {};
     }
   }, [existingContract]);
+
+  // Auto-fill logic
+  useEffect(() => {
+    if (!selectedTemplateId) return;
+
+    const template = CONTRACT_TEMPLATES.find(t => t.id === selectedTemplateId);
+    if (!template) return;
+
+    const spaceName = mySpaces.find(s => String(s.id) === String(contractData.spaceId))?.name || '';
+    const spaceAddress = mySpaces.find(s => String(s.id) === String(contractData.spaceId))?.address || '';
+    
+    const formatCurrencyVal = (val: number | string) => {
+      if (!val) return '';
+      return parseInt(String(val)).toLocaleString('vi-VN');
+    };
+
+    const mergeData: ContractMergeData = {
+      MA_YEU_CAU_THUE: contractData.primaryBookingRequestId ? `#${contractData.primaryBookingRequestId}` : '',
+      NGAY_LAP_HD: new Date().toLocaleDateString('vi-VN'),
+      TEN_MAT_BANG: spaceName,
+      DIA_CHI_MAT_BANG: spaceAddress,
+      DIEN_TICH: contractData.acreage ? `${contractData.acreage} m2` : '',
+      MUC_DICH_KINH_DOANH: contractData.businessPurpose,
+      LICH_HOAT_DONG: formatSchedule(contractData.contractSchedules),
+      GIA_THUE: contractData.price ? `${formatCurrencyVal(contractData.price)} VNĐ/tháng` : '',
+      TIEN_COC: contractData.depositAmount ? `${formatCurrencyVal(contractData.depositAmount)} VNĐ` : '',
+      THOI_HAN_THUE: `${contractData.duration} ${DURATION_UNITS.find(u => u.value === contractData.durationUnit)?.label?.toLowerCase() || ''}`,
+      NGAY_BAT_DAU: contractData.startDate ? new Date(contractData.startDate).toLocaleDateString('vi-VN') : '',
+
+      BEN_A_HO_TEN: lessorProfile?.fullName,
+      BEN_A_CCCD: lessorProfile?.citizenIDNumber,
+      BEN_A_CCCD_NGAY_CAP: lessorProfile?.dateOfIssue ? new Date(lessorProfile.dateOfIssue).toLocaleDateString('vi-VN') : '',
+
+      BEN_B_HO_TEN: lesseeProfile?.fullName,
+      BEN_B_CCCD: lesseeProfile?.citizenIDNumber,
+      BEN_B_CCCD_NGAY_CAP: lesseeProfile?.dateOfIssue ? new Date(lesseeProfile.dateOfIssue).toLocaleDateString('vi-VN') : '',
+    };
+
+    let newDesc = contractData.description || '';
+    
+    if (!newDesc || !lastRenderedRef.current || Object.keys(lastRenderedRef.current).length === 0) {
+      newDesc = fillContractTemplate(template, mergeData);
+    } else {
+      (Object.keys(mergeData) as (keyof ContractMergeData)[]).forEach((key) => {
+        const newValue = renderMergeValue(key, mergeData[key]);
+        const oldValue = lastRenderedRef.current[key];
+        if (oldValue && oldValue !== newValue && newDesc.includes(oldValue)) {
+          newDesc = newDesc.split(oldValue).join(newValue);
+        }
+      });
+    }
+
+    const rendered: Record<string, string> = {};
+    (Object.keys(mergeData) as (keyof ContractMergeData)[]).forEach((key) => {
+      rendered[key] = renderMergeValue(key, mergeData[key]);
+    });
+    lastRenderedRef.current = rendered;
+
+    if (newDesc !== contractData.description) {
+      setContractData(prev => ({ ...prev, description: newDesc }));
+    }
+  }, [
+    selectedTemplateId, 
+    contractData.spaceId, 
+    contractData.primaryBookingRequestId, 
+    contractData.acreage, 
+    contractData.businessPurpose, 
+    contractData.contractSchedules, 
+    contractData.price, 
+    contractData.depositAmount, 
+    contractData.duration, 
+    contractData.durationUnit, 
+    contractData.startDate, 
+    mySpaces, 
+    lessorProfile, 
+    lesseeProfile
+  ]);
 
   const fetchMySpaces = async () => {
     try {
@@ -113,7 +248,7 @@ export default function ContractCreateScreen() {
         const all = Array.isArray(data) ? data : data?.data || data?.items || [];
         let matched = all.filter((r: any) => String(r.lessorId) === String(lessorId) && String(r.lesseeId) === String(lesseeId));
         
-        if (existingContract?.primaryBookingRequestId && !matched.some(r => String(r.id) === String(existingContract.primaryBookingRequestId))) {
+        if (existingContract?.primaryBookingRequestId && !matched.some((r: any) => String(r.id) === String(existingContract.primaryBookingRequestId))) {
           matched = [
             {
               id: existingContract.primaryBookingRequestId,
@@ -145,6 +280,11 @@ export default function ContractCreateScreen() {
 
   const handleSubmit = async () => {
     if (!contractData.primaryBookingRequestId) return Alert.alert('Lỗi', 'Vui lòng chọn yêu cầu đặt thuê!');
+    if (!contractData.spaceId) return Alert.alert('Lỗi', 'Vui lòng chọn mặt bằng!');
+    if (!contractData.duration || !contractData.durationUnit) return Alert.alert('Lỗi', 'Vui lòng nhập thời lượng!');
+    if (!contractData.startDate) return Alert.alert('Lỗi', 'Vui lòng chọn ngày bắt đầu!');
+    if (!contractData.price) return Alert.alert('Lỗi', 'Vui lòng nhập giá thuê!');
+    if (!contractData.depositAmount) return Alert.alert('Lỗi', 'Vui lòng nhập tiền cọc!');
     if (!contractData.businessPurpose.trim()) return Alert.alert('Lỗi', 'Vui lòng nhập mục đích kinh doanh!');
     
     setIsSubmitting(true);
@@ -204,6 +344,22 @@ export default function ContractCreateScreen() {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
+
+          // Send message to chat via API since we don't have direct SignalR connection here
+          const roomId = activeChat?.conversationId || activeChat?.id || activeChat?.Id;
+          if (roomId) {
+            await fetch(`${API_BASE}/api/Message/SendMessage`, {
+              method: 'POST',
+              headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                conversationId: roomId,
+                content: `📄 Tôi vừa tạo và gửi một Hợp đồng (Mã: #${newContractId}). Vui lòng kiểm tra và xác nhận nhé!`
+              })
+            });
+          }
         }
         Alert.alert('Thành công', 'Tạo hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
       }
@@ -259,6 +415,18 @@ export default function ContractCreateScreen() {
         </View>
 
         <View style={styles.inputGroup}>
+          <Text style={styles.label}>Lịch hoạt động</Text>
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowScheduleModal(true)}>
+            <Text style={styles.pickerText}>
+              {contractData.contractSchedules.length > 0 
+                ? `${contractData.contractSchedules.length} khung giờ đã chọn` 
+                : 'Quản lý lịch hoạt động (tuỳ chọn)'}
+            </Text>
+            <Feather name="clock" size={20} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.inputGroup}>
           <Text style={styles.label}>Mặt bằng</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowSpacePicker(true)}>
             <Text style={styles.pickerText}>
@@ -290,13 +458,13 @@ export default function ContractCreateScreen() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Ngày bắt đầu (YYYY-MM-DD) *</Text>
+          <Text style={styles.label}>Ngày bắt đầu *</Text>
           {Platform.OS === 'web' ? (
             React.createElement('input', {
               type: 'date',
               value: contractData.startDate || '',
               onChange: (e: any) => setContractData({ ...contractData, startDate: e.target.value }),
-              style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
+              style: { padding: '10px 12px', borderRadius: 8, border: '1px solid #D1D5DB', width: '100%', fontSize: 15, boxSizing: 'border-box', backgroundColor: '#fff', color: '#111827', cursor: 'pointer' }
             })
           ) : (
             <>
@@ -313,6 +481,7 @@ export default function ContractCreateScreen() {
                   value={new Date(contractData.startDate || Date.now())}
                   mode="date"
                   display="default"
+                  themeVariant="light"
                   onChange={(event, selectedDate) => {
                     setShowStartDatePicker(false);
                     if (selectedDate) {
@@ -324,8 +493,12 @@ export default function ContractCreateScreen() {
               {Platform.OS === 'ios' && (
                 <Modal visible={showStartDatePicker} transparent animationType="slide">
                   <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowStartDatePicker(false)} />
                     <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                        <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                          <Text style={{ color: '#6B7280', fontWeight: 'bold', fontSize: 16 }}>Hủy</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
                           <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
                         </TouchableOpacity>
@@ -334,6 +507,7 @@ export default function ContractCreateScreen() {
                         value={new Date(contractData.startDate || Date.now())}
                         mode="date"
                         display="spinner"
+                        themeVariant="light"
                         onChange={(event, selectedDate) => {
                           if (selectedDate) {
                             setContractData({ ...contractData, startDate: selectedDate.toISOString().slice(0, 10) });
@@ -392,25 +566,148 @@ export default function ContractCreateScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Mô tả / Điều khoản</Text>
           <TextInput
-            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+            style={[styles.input, { height: 180, textAlignVertical: 'top' }]}
             multiline
             value={contractData.description}
             onChangeText={val => setContractData({ ...contractData, description: val })}
           />
         </View>
 
-        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitBtnText}>{isEditMode ? 'Lưu thay đổi' : 'Tạo hợp đồng'}</Text>
-          )}
-        </TouchableOpacity>
+        {!isEditMode && (
+          <View style={[styles.inputGroup, { marginTop: 16 }]}>
+            <Text style={styles.label}>Mẫu hợp đồng</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, fontStyle: 'italic' }}>
+              Vui lòng nhập đầy đủ thông tin phía trên trước khi chọn mẫu hợp đồng.
+            </Text>
+            <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTemplatePicker(true)}>
+              <Text style={styles.pickerText}>
+                {CONTRACT_TEMPLATES.find(t => t.id === selectedTemplateId)?.label || 'Chọn mẫu hợp đồng (tuỳ chọn)'}
+              </Text>
+              <Feather name="chevron-down" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+          <TouchableOpacity 
+            style={[styles.submitBtn, { flex: 1, backgroundColor: '#3B82F6' }]} 
+            onPress={() => setShowPreviewModal(true)}
+          >
+            <Text style={styles.submitBtnText}>Xem trước</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.submitBtn, { flex: 1 }]} onPress={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitBtnText}>{isEditMode ? 'Lưu thay đổi' : 'Tạo hợp đồng'}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {renderPickerModal(showSpacePicker, setShowSpacePicker, 'Chọn mặt bằng', mySpaces, (val) => setContractData({ ...contractData, spaceId: val }), 'name', 'id')}
       {renderPickerModal(showRequestPicker, setShowRequestPicker, 'Chọn yêu cầu', matchedRequests, (val) => setContractData({ ...contractData, primaryBookingRequestId: val }), 'id', 'id')}
       {renderPickerModal(showUnitPicker, setShowUnitPicker, 'Chọn đơn vị', DURATION_UNITS, (val) => setContractData({ ...contractData, durationUnit: val }), 'label', 'value')}
+      {renderPickerModal(showTemplatePicker, setShowTemplatePicker, 'Chọn mẫu hợp đồng', CONTRACT_TEMPLATES, (val) => setSelectedTemplateId(val), 'label', 'id')}
+      {renderPickerModal(showDayPicker, setShowDayPicker, 'Chọn thứ', [
+        { label: 'Thứ Hai', value: 'Monday' }, { label: 'Thứ Ba', value: 'Tuesday' },
+        { label: 'Thứ Tư', value: 'Wednesday' }, { label: 'Thứ Năm', value: 'Thursday' },
+        { label: 'Thứ Sáu', value: 'Friday' }, { label: 'Thứ Bảy', value: 'Saturday' },
+        { label: 'Chủ Nhật', value: 'Sunday' }
+      ], (val) => { setNewSchedule({ ...newSchedule, dayOfWeek: val }); setTimeout(() => setShowScheduleModal(true), 350); }, 'label', 'value')}
+
+      {/* Preview Modal */}
+      <Modal visible={showPreviewModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+            <TouchableOpacity onPress={() => setShowPreviewModal(false)} style={{ padding: 4 }}>
+              <Feather name="x" size={24} color="#111827" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginLeft: 16 }}>Xem trước Hợp đồng</Text>
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {contractData.description ? (() => {
+              const { header, body } = splitContractHeaderBody(contractData.description);
+              return (
+                <>
+                  {!!header && (
+                    <Text style={{ textAlign: 'center', fontSize: 14, fontWeight: 'bold', color: '#1E293B', lineHeight: 22, marginBottom: 16 }}>{header}</Text>
+                  )}
+                  <Text style={{ textAlign: 'left', fontSize: 14, color: '#374151', lineHeight: 24 }}>{body}</Text>
+                </>
+              );
+            })() : (
+              <Text style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Chưa có nội dung. Vui lòng chọn mẫu hợp đồng.</Text>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Schedule Modal */}
+      <Modal visible={showScheduleModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: '90%' }]}>
+            <Text style={styles.modalTitle}>Quản lý Lịch hoạt động</Text>
+            <ScrollView style={{ maxHeight: 200, marginBottom: 16 }}>
+              {contractData.contractSchedules.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: '#6B7280', marginVertical: 10 }}>Chưa có khung giờ nào.</Text>
+              ) : (
+                contractData.contractSchedules.map((sch: any, idx: number) => (
+                  <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
+                    <Text style={{ fontSize: 15, color: '#111827' }}>{sch.dayOfWeek} ({sch.startTime} - {sch.endTime})</Text>
+                    <TouchableOpacity onPress={() => {
+                      const updated = [...contractData.contractSchedules];
+                      updated.splice(idx, 1);
+                      setContractData({ ...contractData, contractSchedules: updated });
+                    }}>
+                      <Feather name="trash-2" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            
+            <View style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+              <Text style={{ fontWeight: '600', marginBottom: 8, color: '#374151' }}>Thêm khung giờ mới</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <TouchableOpacity style={[styles.input, { flex: 1, marginRight: 8, justifyContent: 'center' }]} onPress={() => {
+                  setShowScheduleModal(false);
+                  setTimeout(() => setShowDayPicker(true), 350);
+                }}>
+                  <Text>{newSchedule.dayOfWeek}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <TextInput 
+                  style={[styles.input, { flex: 1, marginRight: 8 }]} 
+                  placeholder="Giờ BĐ (vd: 08:00)" 
+                  value={newSchedule.startTime}
+                  onChangeText={(val) => setNewSchedule({ ...newSchedule, startTime: val })}
+                />
+                <TextInput 
+                  style={[styles.input, { flex: 1 }]} 
+                  placeholder="Giờ KT (vd: 22:00)" 
+                  value={newSchedule.endTime}
+                  onChangeText={(val) => setNewSchedule({ ...newSchedule, endTime: val })}
+                />
+              </View>
+              <TouchableOpacity 
+                style={{ backgroundColor: '#10B981', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 10 }}
+                onPress={() => {
+                  if (!newSchedule.startTime || !newSchedule.endTime) return Alert.alert('Lỗi', 'Vui lòng nhập giờ bắt đầu và kết thúc');
+                  setContractData({ ...contractData, contractSchedules: [...contractData.contractSchedules, newSchedule] as any });
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Thêm</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowScheduleModal(false)}>
+              <Text style={styles.closeModalText}>Xong</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

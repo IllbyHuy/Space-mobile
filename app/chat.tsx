@@ -127,7 +127,7 @@ export default function ChatScreen() {
                 id: savedMessage.id || Date.now(),
                 senderId: savedMessage.senderId,
                 text: savedMessage.content || savedMessage.message,
-                time: new Date(savedMessage.createdAt || new Date()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                time: ((d) => `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`)(new Date(savedMessage.createdAt || new Date()))
               }];
             });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -180,10 +180,14 @@ export default function ChatScreen() {
       });
       if (res.ok) {
         const historyData = await res.json();
-        const mappedHistory = historyData.map((msg: any) => ({
-          id: msg.id, senderId: msg.senderId, text: msg.content || msg.message || '', time: new Date(msg.createdAt || msg.sentAt || new Date()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-        }));
-        setChatHistory(mappedHistory.reverse());
+        const mappedHistory = historyData.map((msg: any) => {
+          const d = new Date(msg.createdAt || msg.sentAt || new Date());
+          return {
+            id: msg.id, senderId: msg.senderId, text: msg.content || msg.message || '', 
+            time: `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
+          };
+        });
+        setChatHistory(mappedHistory);
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
       }
     } catch (err) {
@@ -222,7 +226,7 @@ export default function ChatScreen() {
           <Text style={{ color: textColor, fontSize: 14, lineHeight: 20 }}>{text}</Text>
           <TouchableOpacity
             style={styles.contractBtn}
-            onPress={() => Alert.alert('Thông báo', 'Tính năng xem Hợp đồng trên Mobile đang được phát triển.')}
+            onPress={() => router.push(`/contract/contract-details?contractId=${match[1]}`)}
           >
             <Feather name="file-text" size={14} color="#fff" />
             <Text style={styles.contractBtnText}>Xem Hợp Đồng</Text>

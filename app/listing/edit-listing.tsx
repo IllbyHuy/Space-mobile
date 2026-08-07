@@ -186,7 +186,7 @@ export default function EditListingScreen() {
         const formData = new FormData();
         for (let i = 0; i < selectedImages.length; i++) {
           const img = selectedImages[i];
-          if (img.id) continue;
+          if ((img as any).id) continue;
           if (Platform.OS === 'web') {
             const fetchRes = await fetch(img.uri);
             const blob = await fetchRes.blob();
