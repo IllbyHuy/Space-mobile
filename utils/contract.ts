@@ -101,3 +101,50 @@ export const getUrgencyColor = (remainingRatio: number, status: string): string 
   if (remainingRatio <= 0.4) return '#D97706';
   return '#00A67E';
 };
+
+export const formatTime = (isoDateTime?: string): string => (isoDateTime ? isoDateTime.substring(11, 16) : '');
+
+export const CONTRACT_COLOR_PALETTE = [
+  '#D46EF2', '#4A72FF', '#2EEA82', '#FF9F45', '#FF4D6D',
+  '#22D3EE', '#F5D90A', '#A78BFA', '#F472B6', '#34D399',
+];
+
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+export const toDateKey = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+export const isSameDay = (a: Date, b: Date): boolean =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+export const startOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), 1);
+export const endOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+// Tuần bắt đầu từ Chủ Nhật (khớp cách web dùng date-fns mặc định locale vi).
+export const startOfWeek = (d: Date): Date => {
+  const result = new Date(d);
+  result.setDate(result.getDate() - result.getDay());
+  return result;
+};
+export const endOfWeek = (d: Date): Date => {
+  const result = new Date(d);
+  result.setDate(result.getDate() + (6 - result.getDay()));
+  return result;
+};
+
+export const addMonths = (d: Date, amount: number): Date => new Date(d.getFullYear(), d.getMonth() + amount, 1);
+
+export const eachDayOfInterval = (start: Date, end: Date): Date[] => {
+  const days: Date[] = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cursor.getTime() <= last.getTime()) {
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+};
+
+export const MONTH_LABELS_VI = [
+  'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+  'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
+];

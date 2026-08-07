@@ -46,6 +46,17 @@ export default function ManageSpacesScreen() {
           <Feather name="chevron-right" size={20} color="#D1D5DB" />
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.menuCard} onPress={() => router.push('/rental-calendar')}>
+          <View style={[styles.menuIconWrap, { backgroundColor: '#EFF6FF' }]}>
+            <Feather name="calendar" size={20} color="#2563EB" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuCardTitle}>Lịch thuê mặt bằng</Text>
+            <Text style={styles.menuCardSubtitle}>Xem lịch hợp đồng theo từng mặt bằng</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color="#D1D5DB" />
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.menuCard} onPress={() => router.push('/booking-requests')}>
           <View style={[styles.menuIconWrap, { backgroundColor: '#EEF2FF' }]}>
             <Feather name="inbox" size={20} color="#6366F1" />

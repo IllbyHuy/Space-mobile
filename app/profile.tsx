@@ -123,7 +123,7 @@ export default function ProfileScreen() {
                  {isVerified && <Text style={styles.verifiedBadgeText}>Đã xác thực</Text>}
               </View>
             </View>
-            <TouchableOpacity style={styles.editBtn} onPress={() => notifyComingSoon('Chỉnh sửa hồ sơ')}>
+            <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/user-profile')}>
               <Feather name="edit-2" size={18} color="#00A67E" />
             </TouchableOpacity>
           </View>
@@ -132,7 +132,7 @@ export default function ProfileScreen() {
             <Text style={styles.sectionLabel}>Tài khoản</Text>
             <View style={styles.card}>
               <MenuItem icon="shield" title="Xác thực định danh" onPress={() => router.push('/identity-verification')} />
-              <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => notifyComingSoon('Hồ sơ cá nhân')} />
+              <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => router.push('/user-profile')} />
               <MenuItem icon="file-text" title="Hợp đồng của tôi" onPress={() => router.push('/my-contracts')} />
               <MenuItem icon="calendar" title="Quản lý lịch hẹn" onPress={() => notifyComingSoon('Quản lý lịch hẹn')} />
               <MenuItem icon="credit-card" title="Ví & Thanh toán" onPress={() => router.push('/wallet')} />
