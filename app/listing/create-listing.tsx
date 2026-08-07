@@ -22,6 +22,158 @@ const getNextMonthDate = () => {
   return d.toISOString().slice(0, 10);
 };
 
+/**
+ * DateField
+ * ---------
+ * Gộp lại 1 component riêng để xử lý 3 nền tảng, thay cho việc lặp code
+ * Platform.OS === 'web' / 'ios' / 'android' ngay trong JSX như bản cũ.
+ *
+ * Lý do sửa (bản mới):
+ * - Web: input được tách thành component riêng (WebDateInput) để React không
+ *   tạo lại "instance" input mỗi lần cha re-render — đây là nguyên nhân phổ
+ *   biến khiến input date trên RN-Web bị "đứng hình", không gõ/sửa được.
+ * - iOS: BỎ HẲN display="compact". Trong Expo Go, "compact" tự bung 1 popover
+ *   hệ thống nhưng bị vỡ layout (đè cả app, có lớp phủ xám, khung trắng
+ *   trống, nút "Xong" trôi nổi sai vị trí — đúng như ảnh chụp màn hình lỗi).
+ *   Thay bằng Modal tự custom (bottom sheet) + display="spinner" bên trong,
+ *   có nút "Hủy"/"Xong" tự vẽ. Mình toàn quyền kiểm soát layout & chiều cao
+ *   -> không còn phụ thuộc vào cách Expo Go render popover hệ thống.
+ * - Android: giữ nguyên display="default" (dialog hệ thống) vì đang chạy ổn.
+ */
+function WebDateInput({
+  value,
+  min,
+  onChange,
+}: {
+  value: string;
+  min?: string;
+  onChange: (val: string) => void;
+}) {
+  // Dùng React.createElement để render thẻ <input> HTML thật trên web.
+  // Style dùng object DOM style bình thường (camelCase), không phải RN style.
+  return React.createElement('input', {
+    type: 'date',
+    value: value || '',
+    min: min || undefined,
+    onChange: (e: any) => onChange(e.target.value),
+    style: {
+      padding: '10px 12px',
+      borderRadius: 8,
+      border: '1px solid #D1D5DB',
+      width: '100%',
+      fontSize: 15,
+      boxSizing: 'border-box',
+      backgroundColor: '#fff',
+      color: '#111827',
+      cursor: 'pointer',
+      pointerEvents: 'auto',
+      position: 'relative',
+      zIndex: 1,
+      colorScheme: 'light',
+    },
+  });
+}
+
+function DateField({
+  label,
+  value,
+  minDate,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  minDate?: string;
+  onChange: (val: string) => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  // State tạm để user vặn spinner (iOS) nhưng chưa commit ra ngoài cho tới
+  // khi bấm "Xong". Bấm "Hủy" thì giá trị cũ của form không đổi.
+  const [tempDate, setTempDate] = useState(new Date(value || Date.now()));
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.inputGroup, { flex: 1 }]}>
+        <Text style={styles.label}>{label}</Text>
+        <WebDateInput value={value} min={minDate} onChange={onChange} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.inputGroup, { flex: 1 }]}>
+      <Text style={styles.label}>{label}</Text>
+
+      <TouchableOpacity
+        style={[styles.input, { justifyContent: 'center' }]}
+        onPress={() => {
+          setTempDate(new Date(value || Date.now()));
+          setShowPicker(true);
+        }}
+      >
+        <Text style={{ color: value ? '#111827' : '#9CA3AF' }}>
+          {value || 'Chọn ngày'}
+        </Text>
+      </TouchableOpacity>
+
+      {Platform.OS === 'ios' ? (
+        <Modal visible={showPicker} transparent animationType="slide">
+          <View style={styles.dateModalOverlay}>
+            {/* Bấm ra ngoài để hủy, giống hành vi action sheet chuẩn */}
+            <TouchableOpacity
+              style={{ flex: 1 }}
+              activeOpacity={1}
+              onPress={() => setShowPicker(false)}
+            />
+            <View style={styles.dateModalContent}>
+              <View style={styles.dateModalHeader}>
+                <TouchableOpacity onPress={() => setShowPicker(false)}>
+                  <Text style={styles.dateModalCancel}>Hủy</Text>
+                </TouchableOpacity>
+                <Text style={styles.dateModalTitle}>{label}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    onChange(tempDate.toISOString().slice(0, 10));
+                    setShowPicker(false);
+                  }}
+                >
+                  <Text style={styles.dateModalDone}>Xong</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={tempDate}
+                mode="date"
+                display="spinner"
+                themeVariant="light"
+                minimumDate={minDate ? new Date(minDate) : undefined}
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) setTempDate(selectedDate);
+                }}
+                style={styles.iosSpinnerPicker}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        showPicker && (
+          <DateTimePicker
+            value={new Date(value || Date.now())}
+            mode="date"
+            display="default"
+            themeVariant="light"
+            minimumDate={minDate ? new Date(minDate) : undefined}
+            onChange={(event, selectedDate) => {
+              setShowPicker(false);
+              if (selectedDate) {
+                onChange(selectedDate.toISOString().slice(0, 10));
+              }
+            }}
+          />
+        )
+      )}
+    </View>
+  );
+}
+
 export default function CreateListingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -40,9 +192,6 @@ export default function CreateListingScreen() {
   const [price, setPrice] = useState('');
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
-  
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
@@ -291,124 +440,20 @@ export default function CreateListingScreen() {
         <Text style={styles.sectionTitle}>Thời gian hiệu lực</Text>
 
         <View style={styles.row}>
-          <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.label}>Từ ngày</Text>
-            {Platform.OS === 'web' ? (
-              React.createElement('input', {
-                type: 'date',
-                value: allowedStartTime || '',
-                onChange: (e: any) => setAllowedStartTime(e.target.value),
-                style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
-              })
-            ) : (
-              <>
-                <TouchableOpacity 
-                  style={[styles.input, { justifyContent: 'center' }]} 
-                  onPress={() => setShowStartDatePicker(true)}
-                >
-                  <Text style={{ color: allowedStartTime ? '#111827' : '#9CA3AF' }}>
-                    {allowedStartTime || "Chọn ngày"}
-                  </Text>
-                </TouchableOpacity>
-                {Platform.OS === 'android' && showStartDatePicker && (
-                  <DateTimePicker
-                    value={new Date(allowedStartTime || Date.now())}
-                    mode="date"
-                    display="default"
-                    onChange={(event, selectedDate) => {
-                      setShowStartDatePicker(false);
-                      if (selectedDate) {
-                        setAllowedStartTime(selectedDate.toISOString().slice(0, 10));
-                      }
-                    }}
-                  />
-                )}
-                {Platform.OS === 'ios' && (
-                  <Modal visible={showStartDatePicker} transparent animationType="slide">
-                    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                      <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-                          <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
-                            <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <DateTimePicker
-                          value={new Date(allowedStartTime || Date.now())}
-                          mode="date"
-                          display="spinner"
-                          onChange={(event, selectedDate) => {
-                            if (selectedDate) {
-                              setAllowedStartTime(selectedDate.toISOString().slice(0, 10));
-                            }
-                          }}
-                        />
-                      </View>
-                    </View>
-                  </Modal>
-                )}
-              </>
-            )}
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <DateField
+              label="Từ ngày"
+              value={allowedStartTime}
+              onChange={setAllowedStartTime}
+            />
           </View>
-          <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-            <Text style={styles.label}>Đến ngày</Text>
-            {Platform.OS === 'web' ? (
-              React.createElement('input', {
-                type: 'date',
-                value: allowedEndTime || '',
-                min: allowedStartTime || '',
-                onChange: (e: any) => setAllowedEndTime(e.target.value),
-                style: { padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', fontSize: '16px', boxSizing: 'border-box' }
-              })
-            ) : (
-              <>
-                <TouchableOpacity 
-                  style={[styles.input, { justifyContent: 'center' }]} 
-                  onPress={() => setShowEndDatePicker(true)}
-                >
-                  <Text style={{ color: allowedEndTime ? '#111827' : '#9CA3AF' }}>
-                    {allowedEndTime || "Chọn ngày"}
-                  </Text>
-                </TouchableOpacity>
-                {Platform.OS === 'android' && showEndDatePicker && (
-                  <DateTimePicker
-                    value={new Date(allowedEndTime || Date.now())}
-                    mode="date"
-                    display="default"
-                    minimumDate={new Date(allowedStartTime || Date.now())}
-                    onChange={(event, selectedDate) => {
-                      setShowEndDatePicker(false);
-                      if (selectedDate) {
-                        setAllowedEndTime(selectedDate.toISOString().slice(0, 10));
-                      }
-                    }}
-                  />
-                )}
-                {Platform.OS === 'ios' && (
-                  <Modal visible={showEndDatePicker} transparent animationType="slide">
-                    <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                      <View style={{ backgroundColor: '#fff', paddingBottom: insets.bottom || 20 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-                          <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
-                            <Text style={{ color: '#00A67E', fontWeight: 'bold', fontSize: 16 }}>Xong</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <DateTimePicker
-                          value={new Date(allowedEndTime || Date.now())}
-                          mode="date"
-                          display="spinner"
-                          minimumDate={new Date(allowedStartTime || Date.now())}
-                          onChange={(event, selectedDate) => {
-                            if (selectedDate) {
-                              setAllowedEndTime(selectedDate.toISOString().slice(0, 10));
-                            }
-                          }}
-                        />
-                      </View>
-                    </View>
-                  </Modal>
-                )}
-              </>
-            )}
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <DateField
+              label="Đến ngày"
+              value={allowedEndTime}
+              minDate={allowedStartTime}
+              onChange={setAllowedEndTime}
+            />
           </View>
         </View>
 
@@ -418,7 +463,7 @@ export default function CreateListingScreen() {
           <Feather name="image" size={20} color="#00A67E" />
           <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
         </TouchableOpacity>
-        
+
         {selectedImages.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
             {selectedImages.map((img, idx) => (
@@ -431,7 +476,6 @@ export default function CreateListingScreen() {
             ))}
           </ScrollView>
         )}
-
 
         {/* Submit */}
         <TouchableOpacity
@@ -512,6 +556,37 @@ const styles = StyleSheet.create({
     fontSize: 15, color: '#111827',
   },
   hintText: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+
+  // Bottom sheet cho date picker trên iOS (thay cho "compact" bị vỡ layout)
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  dateModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  dateModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dateModalTitle: { fontSize: 15, fontWeight: '700', color: '#111827' },
+  dateModalCancel: { fontSize: 15, color: '#6B7280' },
+  dateModalDone: { fontSize: 15, color: '#00A67E', fontWeight: '700' },
+  iosSpinnerPicker: {
+    height: 216,
+    width: '100%',
+    backgroundColor: '#fff',
+    alignSelf: 'center',
+  },
 
   pickImageBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
