@@ -20,18 +20,17 @@ export default function HomeScreen() {
       try {
         const token = await AsyncStorage.getItem("portal_token");
         if (!token) return;
-        const res = await fetch("https://flexi-space-capstone-project.onrender.com/api/Notification/history", {
+        const res = await fetch("https://flexi-space-capstone-project.onrender.com/api/Notification/unread-count", {
           headers: { Authorization: `Bearer ${token}`, Accept: "*/*" },
         });
         if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const unread = data.filter((n) => !n.isRead).length;
-            setUnreadCount(unread);
+          const count = await res.json();
+          if (typeof count === 'number') {
+            setUnreadCount(count);
           }
         }
       } catch (e) {
-        console.error("Error fetching notifications on home:", e);
+        console.error("Error fetching unread count on home:", e);
       }
     };
     fetchUnreadCount();

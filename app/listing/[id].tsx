@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router"; // THÊM Stack VÀO ĐÂY
-import React, { useEffect, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"; // THÊM Stack VÀO ĐÂY
+import React, { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -68,7 +68,8 @@ export default function ListingDetailScreen() {
     return d.toISOString().split('T')[0];
   });
 
-  useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
     const fetchDetail = async () => {
       try {
         const storedToken = await AsyncStorage.getItem("portal_token");
@@ -167,7 +168,8 @@ export default function ListingDetailScreen() {
       }
     };
     if (id) fetchDetail();
-  }, [id]);
+    }, [id])
+  );
 
   const handleToggleFavorite = async () => {
     if (!token) {
@@ -304,7 +306,47 @@ export default function ListingDetailScreen() {
     );
   }
 
+  const handleContactPress = async () => {
+    if (!token) {
+      Alert.alert(
+        "Yêu cầu đăng nhập",
+        "Vui lòng đăng nhập để gửi yêu cầu thuê!",
+        [
+          { text: "Để sau", style: "cancel" },
+          { text: "Đăng nhập", onPress: () => router.push("/login") },
+        ],
+      );
+      return;
+    }
+    try {
+      const ownerId = listing._spaceOwnerId || listing.ownerId || listing.creatorId || listing.createdBy;
+      if (ownerId && currentUserId) {
+        const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Conversation/ByParticipants?lessorId=${ownerId}&lesseeId=${currentUserId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const conv = await res.json();
+          if (conv && (conv.id || conv.Id)) {
+            router.push({ pathname: '/chat', params: { conversationId: conv.id || conv.Id } });
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Error checking conversation:", e);
+    }
+    // No existing conversation, open booking modal
+    setIsBookingModalOpen(true);
+  };
+
   if (!listing) return null;
+
+  const isOwner = currentUserId && listing && (
+    String(listing._spaceOwnerId || '') === String(currentUserId) ||
+    String(listing.ownerId || '') === String(currentUserId) ||
+    String(listing.creatorId || '') === String(currentUserId) ||
+    String(listing.createdBy || '') === String(currentUserId)
+  );
 
   const rawPictures = listing.listingPictures || [];
   const mainImage =
@@ -355,7 +397,15 @@ export default function ListingDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* 1. ẢNH BÌA TRÀN VIỀN LÊN TẬN MÉP TRÊN */}
-        <Image source={{ uri: mainImage }} style={styles.coverImage} />
+        {rawPictures.length > 0 ? (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+            {rawPictures.map((pic: any, idx: number) => (
+              <Image key={idx} source={{ uri: getPicUrl(pic) || FALLBACK_IMAGE }} style={[styles.coverImage, { width: Dimensions.get('window').width }]} />
+            ))}
+          </ScrollView>
+        ) : (
+          <Image source={{ uri: FALLBACK_IMAGE }} style={styles.coverImage} />
+        )}
 
         <View style={styles.contentBody}>
           {/* 2. HEADER THÔNG TIN */}
@@ -394,22 +444,24 @@ export default function ListingDetailScreen() {
           </View>
 
           {/* 4. CHỦ NHÀ */}
-          <View style={styles.hostSection}>
-            <View style={styles.hostAvatar}>
-              <Text style={styles.hostAvatarText}>
-                {(listing.lessorName || "CH").substring(0, 2).toUpperCase()}
-              </Text>
+          {!isOwner && (
+            <View style={styles.hostSection}>
+              <View style={styles.hostAvatar}>
+                <Text style={styles.hostAvatarText}>
+                  {(listing.lessorName || "CH").substring(0, 2).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hostName}>
+                  Chủ nhà {listing.lessorName || "Ẩn danh"}
+                </Text>
+                <Text style={styles.hostStatus}>Đang hoạt động</Text>
+              </View>
+              <TouchableOpacity style={styles.chatIconBtn} onPress={handleContactPress}>
+                <Feather name="message-circle" size={20} color="#00A67E" />
+              </TouchableOpacity>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hostName}>
-                Chủ nhà {listing.lessorName || "Ẩn danh"}
-              </Text>
-              <Text style={styles.hostStatus}>Đang hoạt động</Text>
-            </View>
-            <TouchableOpacity style={styles.chatIconBtn}>
-              <Feather name="message-circle" size={20} color="#00A67E" />
-            </TouchableOpacity>
-          </View>
+          )}
 
           {/* 5. MÔ TẢ */}
           <View style={styles.descSection}>
@@ -514,11 +566,26 @@ export default function ListingDetailScreen() {
               ) : (
                 <WebView
                   source={{
-                    uri: `https://maps.google.com/maps?q=${encodeURIComponent(listing.address || "Hồ Chí Minh")}&output=embed`,
+                    html: `
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                          <style>
+                            body { margin: 0; padding: 0; }
+                            iframe { width: 100vw; height: 100vh; border: none; }
+                          </style>
+                        </head>
+                        <body>
+                          <iframe src="https://maps.google.com/maps?q=${encodeURIComponent(listing.address || "Hồ Chí Minh")}&output=embed"></iframe>
+                        </body>
+                      </html>
+                    `
                   }}
                   style={{ flex: 1 }}
                   showsVerticalScrollIndicator={false}
                   showsHorizontalScrollIndicator={false}
+                  scrollEnabled={false}
                 />
               )}
             </View>
@@ -528,12 +595,6 @@ export default function ListingDetailScreen() {
 
       {/* STICKY BOTTOM BAR - Owner vs Visitor */}
       {(() => {
-        const isOwner = currentUserId && listing && (
-          String(listing._spaceOwnerId || '') === String(currentUserId) ||
-          String(listing.ownerId || '') === String(currentUserId) ||
-          String(listing.creatorId || '') === String(currentUserId) ||
-          String(listing.createdBy || '') === String(currentUserId)
-        );
         if (isOwner) {
           return (
             <View style={[styles.bottomBar, { paddingBottom: insets.bottom || 16 }]}>
@@ -585,8 +646,8 @@ export default function ListingDetailScreen() {
                 </Text>
               </Text>
             </View>
-            <TouchableOpacity style={styles.bookBtn} onPress={openBookingModal}>
-              <Text style={styles.bookBtnText}>Gửi yêu cầu</Text>
+            <TouchableOpacity style={styles.bookBtn} onPress={handleContactPress}>
+              <Text style={styles.bookBtnText}>Liên hệ / Gửi yêu cầu</Text>
             </TouchableOpacity>
           </View>
         );

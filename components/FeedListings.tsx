@@ -170,10 +170,7 @@ export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '' }: 
             <Feather name="heart" size={20} color={isSaved ? '#E02424' : '#65676B'} />
             <Text style={[styles.actionText, isSaved && { color: '#E02424' }]}>{isSaved ? 'Đã lưu' : 'Lưu tin'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Thông báo', 'Chuẩn bị tích hợp API Chat!')}>
-            <Feather name="message-circle" size={20} color="#65676B" />
-            <Text style={styles.actionText}>Nhắn tin</Text>
-          </TouchableOpacity>
+
           <TouchableOpacity style={styles.actionBtn} onPress={() => handleShareListing(item)}>
             <Feather name="share-2" size={20} color="#65676B" />
             <Text style={styles.actionText}>Chia sẻ</Text>

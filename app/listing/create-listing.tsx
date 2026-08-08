@@ -190,6 +190,9 @@ export default function CreateListingScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [listingType, setListingType] = useState<0 | 1>(0);
+  const [maxRenters, setMaxRenters] = useState('');
+  const [availableSlots, setAvailableSlots] = useState('');
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
 
@@ -270,6 +273,18 @@ export default function CreateListingScreen() {
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
     }
 
+    if (listingType === 1) {
+      if (!maxRenters || parseInt(maxRenters) <= 0) {
+        return Alert.alert('Lỗi', 'Số lượng người tối đa phải lớn hơn 0!');
+      }
+      if (!availableSlots || parseInt(availableSlots) <= 0) {
+        return Alert.alert('Lỗi', 'Số lượng chỗ trống phải lớn hơn 0!');
+      }
+      if (parseInt(availableSlots) > parseInt(maxRenters)) {
+        return Alert.alert('Lỗi', 'Số lượng chỗ trống không được lớn hơn số lượng người tối đa!');
+      }
+    }
+
     setIsSubmitting(true);
 
     // Payload matches web ListingForm.tsx line 311-319
@@ -280,6 +295,9 @@ export default function CreateListingScreen() {
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
+      listingType: listingType,
+      maxRenters: listingType === 1 ? parseInt(maxRenters) : null,
+      availableSlots: listingType === 1 ? parseInt(availableSlots) : null,
       listingPictures: [],
     };
 
@@ -395,6 +413,36 @@ export default function CreateListingScreen() {
             </Text>
           )}
         </View>
+
+        {/* Loại bài đăng */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Loại bài đăng *</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity 
+              style={[styles.typeBtn, listingType === 0 && styles.typeBtnActive]}
+              onPress={() => setListingType(0)}>
+              <Text style={[styles.typeBtnText, listingType === 0 && styles.typeBtnTextActive]}>Thuê dài hạn</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]}
+              onPress={() => setListingType(1)}>
+              <Text style={[styles.typeBtnText, listingType === 1 && styles.typeBtnTextActive]}>Chia sẻ chỗ</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {listingType === 1 && (
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Số người tối đa *</Text>
+              <TextInput style={styles.input} keyboardType="numeric" value={maxRenters} onChangeText={setMaxRenters} placeholder="VD: 5" />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Chỗ trống *</Text>
+              <TextInput style={styles.input} keyboardType="numeric" value={availableSlots} onChangeText={setAvailableSlots} placeholder="VD: 2" />
+            </View>
+          </View>
+        )}
 
         {/* Tên bài đăng */}
         <View style={styles.inputGroup}>
@@ -555,7 +603,28 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
     fontSize: 15, color: '#111827',
   },
-  hintText: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+  hintText: { fontSize: 13, color: '#6B7280', marginTop: 4 },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB'
+  },
+  typeBtnActive: {
+    borderColor: '#00A67E',
+    backgroundColor: '#00A67E20'
+  },
+  typeBtnText: {
+    color: '#374151',
+    fontWeight: '500'
+  },
+  typeBtnTextActive: {
+    color: '#00A67E',
+    fontWeight: 'bold'
+  },
 
   // Bottom sheet cho date picker trên iOS (thay cho "compact" bị vỡ layout)
   dateModalOverlay: {

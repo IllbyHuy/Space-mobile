@@ -96,15 +96,89 @@ export default function NotificationsScreen() {
     fetchNotifications();
   }, []);
 
-  const handleNotificationPress = (item: NotificationItem) => {
-    // Navigate based on type if needed
-    const t = item.title?.toLowerCase() || '';
-    if (t.includes('yêu cầu') || item.type === 'BookingRequest') {
-      router.push('/booking-requests');
-    } else if (item.type === 'Booking' && item.referenceId) {
-      router.push(`/contract/${item.referenceId}` as any);
+  const handleMarkAsRead = async (notificationId: number) => {
+    try {
+      const accessToken = await AsyncStorage.getItem('portal_token');
+      if (!accessToken) return;
+
+      const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Notification/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': '*/*'
+        }
+      });
+
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error("Error marking notification as read", err);
     }
-    // Implement mark as read API here if backend supports it
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const accessToken = await AsyncStorage.getItem('portal_token');
+      if (!accessToken) return;
+
+      const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Notification/read-all`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': '*/*'
+        }
+      });
+
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error("Error marking all notifications as read", err);
+    }
+  };
+
+  const handleNotificationPress = (item: NotificationItem) => {
+    if (!item.isRead) {
+      handleMarkAsRead(item.id);
+    }
+
+    const t = item.title?.toLowerCase() || '';
+    const c = item.content?.toLowerCase() || '';
+
+    // Hàm bỏ dấu tiếng Việt để so sánh chuỗi
+    const removeAccents = (str: string) => {
+      return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+    };
+
+    const tUnaccented = removeAccents(t);
+    const cUnaccented = removeAccents(c);
+
+    // Ưu tiên kiểm tra xem có phải là thông báo về hợp đồng không
+    if (tUnaccented.includes('hop dong') || cUnaccented.includes('hop dong')) {
+      if (item.referenceId) {
+        router.push(`/contract/${item.referenceId}` as any);
+      }
+      return;
+    }
+
+    // Nếu là yêu cầu hoặc đặt chỗ mới
+    if (
+      tUnaccented.includes('yeu cau') || tUnaccented.includes('dat cho') || 
+      cUnaccented.includes('yeu cau') || cUnaccented.includes('dat cho') || 
+      item.type === 'BookingRequest'
+    ) {
+      router.push('/booking-requests');
+      return;
+    }
+
+    // Fallback cũ (hiện tại tất cả type Booking đều là Booking Request vì backend chưa có thông báo cho Hợp đồng)
+    if (item.type === 'Booking' && item.referenceId) {
+      // Tạm thời fallback về booking-requests nếu là type Booking, vì hiện tại type Booking toàn là đặt chỗ
+      router.push('/booking-requests');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -147,7 +221,9 @@ export default function NotificationsScreen() {
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thông báo</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={handleMarkAllAsRead} style={styles.readAllBtn}>
+          <Feather name="check-square" size={20} color="#00D4A0" />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -204,6 +280,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
+  },
+  readAllBtn: {
+    padding: 4,
   },
   listContainer: {
     padding: 16,

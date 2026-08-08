@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCallback } from 'react';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -31,11 +32,13 @@ export default function MyListingsScreen() {
     loadAuth();
   }, []);
 
-  useEffect(() => {
-    if (token && currentUserId) {
-      fetchListings();
-    }
-  }, [token, currentUserId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (token && currentUserId) {
+        fetchListings();
+      }
+    }, [token, currentUserId])
+  );
 
   const fetchListings = async () => {
     setIsLoading(true);

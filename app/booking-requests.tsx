@@ -111,15 +111,16 @@ export default function BookingRequestsScreen() {
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.requestTitle}>Mã tin: #{item.spaceId || item.shareListingId}</Text>
+        <Text style={styles.requestTitle}>Mã tin: #{item.listingId}</Text>
         <Text style={styles.requestDate}>
-          {new Date(item.createdDate || Date.now()).toLocaleDateString('vi-VN')}
+          {new Date(item.expectedStartDate).toLocaleDateString('vi-VN')} - {new Date(item.expectedEndDate).toLocaleDateString('vi-VN')}
         </Text>
       </View>
       
       <View style={styles.cardBody}>
+        <Text style={styles.infoText}><Text style={styles.bold}>Người thuê:</Text> {item.lesseeName || 'Không rõ'}</Text>
         <Text style={styles.infoText}><Text style={styles.bold}>Giá đề xuất:</Text> {item.offeredPrice?.toLocaleString('vi-VN')} VND</Text>
-        <Text style={styles.infoText}><Text style={styles.bold}>Mục đích:</Text> {item.businessPurpose || 'Không có'}</Text>
+        <Text style={styles.infoText}><Text style={styles.bold}>Mục đích:</Text> {item.purpose || 'Không có'}</Text>
         <Text style={styles.infoText}><Text style={styles.bold}>Thời lượng:</Text> {item.duration || 1} ngày</Text>
         {item.note && <Text style={styles.infoText}><Text style={styles.bold}>Ghi chú:</Text> {item.note}</Text>}
       </View>

@@ -250,17 +250,7 @@ export default function MyContractsScreen() {
           </View>
         </View>
 
-        <View style={styles.progressSection}>
-          <View style={styles.progressLabelRow}>
-            <Text style={styles.progressLabel}>Tiến độ hợp đồng</Text>
-            <Text style={[styles.progressRemaining, { color: urgencyColor }]}>
-              {item.status === 'Active' ? `Còn ${remaining}/${total} tháng` : `${total} tháng`}
-            </Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progressPct}%`, backgroundColor: urgencyColor }]} />
-          </View>
-        </View>
+
 
         <View style={styles.infoRow}>
           <Feather name="trending-up" size={13} color="#00A67E" />

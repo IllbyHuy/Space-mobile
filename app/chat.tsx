@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Alert, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { HubConnectionBuilder, LogLevel, HubConnection } from '@microsoft/signalr';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +43,9 @@ export default function ChatScreen() {
   useEffect(() => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
+
+  const { conversationId } = useLocalSearchParams();
+  const hasAutoOpened = useRef(false);
 
   useEffect(() => {
     const loadAuthData = async () => {
@@ -194,6 +197,16 @@ export default function ChatScreen() {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    if (conversationId && conversations.length > 0 && view === 'LIST' && !hasAutoOpened.current) {
+      const room = conversations.find(c => String(c.id || c.Id) === String(conversationId));
+      if (room) {
+        hasAutoOpened.current = true;
+        openChatRoom(room);
+      }
+    }
+  }, [conversationId, conversations, view]);
 
   // Y HỆT LOGIC handleSendMessage CỦA BẢN WEB: chỉ gửi khi connection đã sẵn
   // sàng (được thiết lập từ effect global ở trên), KHÔNG tự tạo connection mới
