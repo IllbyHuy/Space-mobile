@@ -525,7 +525,6 @@ export default function CreateListingScreen() {
           )}
         </View>
 
-        {/* Loại bài đăng */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Loại bài đăng *</Text>
           <View style={styles.row}>
@@ -535,6 +534,27 @@ export default function CreateListingScreen() {
             <TouchableOpacity style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]} onPress={() => setListingType(1)}>
               <Text style={[styles.typeBtnText, listingType === 1 && styles.typeBtnTextActive]}>Chia sẻ chỗ</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Gói bài đăng */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Gói bài đăng *</Text>
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowPriorityPicker(true)}>
+            <Text style={priorityLevelId !== '' ? styles.pickerText : styles.pickerPlaceholder}>
+              {priorityLevelId !== '' ? (priorityLevels.find(p => p.id === priorityLevelId)?.name + ' - ' + priorityLevels.find(p => p.id === priorityLevelId)?.price.toLocaleString('vi-VN') + ' VNĐ') : '-- Chọn gói bài đăng --'}
+            </Text>
+            <Feather name="chevron-down" size={18} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Số dư ví */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Số dư ví</Text>
+          <View style={[styles.input, { backgroundColor: '#E5E7EB', justifyContent: 'center' }]}>
+            <Text style={{ color: '#059669', fontWeight: 'bold' }}>
+              {walletBalance !== null ? walletBalance.toLocaleString('vi-VN') + ' VNĐ' : 'Đang tải...'}
+            </Text>
           </View>
         </View>
 
