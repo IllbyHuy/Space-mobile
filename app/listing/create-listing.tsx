@@ -74,6 +74,53 @@ function WebDateInput({
   });
 }
 
+const CustomCheckbox = ({ value, onValueChange, label }: any) => (
+  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }} onPress={() => onValueChange(!value)}>
+    <View style={{ width: 20, height: 20, borderWidth: 1, borderColor: '#00A67E', borderRadius: 4, marginRight: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: value ? '#00A67E' : 'transparent' }}>
+      {value && <Feather name="check" size={14} color="#fff" />}
+    </View>
+    {label && <Text style={{ color: '#374151', flex: 1 }}>{label}</Text>}
+  </TouchableOpacity>
+);
+
+const TimeField = ({ label, value, onChange }: any) => {
+  const [show, setShow] = useState(false);
+  const dateObj = new Date();
+  try {
+    const [h, m] = value.split(':');
+    dateObj.setHours(parseInt(h), parseInt(m), 0, 0);
+  } catch(e) {}
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShow(Platform.OS === 'ios');
+    if (selectedDate) {
+      const hh = selectedDate.getHours().toString().padStart(2, '0');
+      const mm = selectedDate.getMinutes().toString().padStart(2, '0');
+      onChange(hh + ':' + mm);
+    }
+  };
+  return (
+    <View>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <TouchableOpacity style={styles.input} onPress={() => setShow(true)}>
+        <Text style={{ color: '#111827' }}>{value}</Text>
+      </TouchableOpacity>
+      {show && (
+        <DateTimePicker
+          value={dateObj}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onDateChange}
+        />
+      )}
+      {Platform.OS === 'ios' && show && (
+        <TouchableOpacity style={{ alignItems: 'center', padding: 8 }} onPress={() => setShow(false)}>
+          <Text style={{ color: '#00A67E', fontWeight: 'bold' }}>Xong</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
 function DateField({
   label,
   value,
@@ -193,6 +240,22 @@ export default function CreateListingScreen() {
   const [listingType, setListingType] = useState<0 | 1>(0);
   const [maxRenters, setMaxRenters] = useState('');
   const [availableSlots, setAvailableSlots] = useState('');
+  const [priorityLevels, setPriorityLevels] = useState<any[]>([]);
+  const [priorityLevelId, setPriorityLevelId] = useState<number | ''>('');
+  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
+  const [isLegalCommitted, setIsLegalCommitted] = useState(false);
+  const [availabilities, setAvailabilities] = useState<any[]>([
+    { daysOfWeek: [], specificdate: '', startTime: '08:00', endTime: '12:00', validFrom: getSafeDateOnly(), validTo: getSafeDateOnly() }
+  ]);
+  
+  const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const DAYS_LABEL_VI: Record<string, string> = {
+    Monday: 'T2', Tuesday: 'T3', Wednesday: 'T4', Thursday: 'T5',
+    Friday: 'T6', Saturday: 'T7', Sunday: 'CN'
+  };
+
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
 
@@ -213,18 +276,31 @@ export default function CreateListingScreen() {
     if (!token || !currentUserId) return;
     const fetchSpaces = async () => {
       try {
+        const prioRes = await fetch(`${API_BASE}/api/PriorityLevel/GetAll`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
+        if (prioRes.ok) {
+          const prioData = await prioRes.json();
+          const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
+          const activePrio = pList.filter((p: any) => p.isActive);
+          setPriorityLevels(activePrio);
+          if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
+        }
+        
+        const walletRes = await fetch(`${API_BASE}/api/WalletAccount/GetByUserId?userId=${currentUserId}`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
+        if (walletRes.ok) {
+          const wData = await walletRes.json();
+          setWalletBalance(wData.balance || 0);
+        }
+
         const res = await fetch(
           `${API_BASE}/api/Space/GetAll?OwnerId=${encodeURIComponent(currentUserId)}`,
-          {
-            headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
-          }
+          { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
         );
         if (res.ok) {
           const data = await res.json();
           setMySpaces(Array.isArray(data) ? data : data?.data || []);
         }
       } catch (err) {
-        console.error('Lỗi lấy danh sách mặt bằng:', err);
+        console.error('Lỗi lấy dữ liệu:', err);
       }
     };
     fetchSpaces();
@@ -273,36 +349,71 @@ export default function CreateListingScreen() {
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
     }
 
+    if (priorityLevelId === '') {
+      return Alert.alert('Lỗi', 'Vui lòng chọn gói bài đăng!');
+    }
+    const chosenPackagePrice = priorityLevels.find(p => p.id === priorityLevelId)?.price ?? 0;
+    if (walletBalance !== null && walletBalance < chosenPackagePrice) {
+      return Alert.alert('Lỗi', `Số dư ví không đủ để đăng tin! Cần ${chosenPackagePrice.toLocaleString('vi-VN')} VNĐ.`);
+    }
+
     if (listingType === 1) {
       if (!maxRenters || parseInt(maxRenters) <= 0) {
         return Alert.alert('Lỗi', 'Số lượng người tối đa phải lớn hơn 0!');
       }
-      if (!availableSlots || parseInt(availableSlots) <= 0) {
-        return Alert.alert('Lỗi', 'Số lượng chỗ trống phải lớn hơn 0!');
+      if (availabilities.some(slot => slot.daysOfWeek.length === 0 && !slot.specificdate)) {
+        return Alert.alert('Lỗi', 'Vui lòng chọn ít nhất 1 ngày hoặc ngày cụ thể cho mỗi khung giờ chia sẻ!');
       }
-      if (parseInt(availableSlots) > parseInt(maxRenters)) {
-        return Alert.alert('Lỗi', 'Số lượng chỗ trống không được lớn hơn số lượng người tối đa!');
+      const allowedEnd = new Date(allowedEndTime);
+      const allowedStart = new Date(allowedStartTime);
+      const badSlot = availabilities.find(slot => {
+        const vFrom = new Date(slot.validFrom);
+        const vTo = new Date(slot.validTo);
+        return vTo > allowedEnd || vFrom < allowedStart || vFrom > vTo;
+      });
+      if (badSlot) {
+        return Alert.alert('Lỗi', `Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ!`);
+      }
+      const badTimeSlot = availabilities.find(slot => slot.startTime >= slot.endTime);
+      if (badTimeSlot) {
+        return Alert.alert('Lỗi', 'Giờ kết thúc khung giờ chia sẻ phải sau giờ bắt đầu!');
+      }
+      if (!isLegalCommitted) {
+        return Alert.alert('Lỗi', 'Vui lòng tích "Cam kết pháp lý"!');
       }
     }
 
     setIsSubmitting(true);
 
-    // Payload matches web ListingForm.tsx line 311-319
-    const payload = {
+    let apiUrl = `${API_BASE}/api/Listing/Create?amount=${chosenPackagePrice}`;
+    let payload: any = {
       spaceId: Number(spaceId),
       allowedStartTime: allowedStartTime.substring(0, 10),
       allowedEndTime: allowedEndTime.substring(0, 10),
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
-      listingType: listingType,
-      maxRenters: listingType === 1 ? parseInt(maxRenters) : null,
-      availableSlots: listingType === 1 ? parseInt(availableSlots) : null,
       listingPictures: [],
     };
 
+    if (listingType === 1) {
+      apiUrl = `${API_BASE}/api/Listing/CreateShareListing?amount=${chosenPackagePrice}`;
+      payload = {
+        ...payload,
+        shareSpaceDetailMaxSubRenter: Number(maxRenters),
+        shareSpaceDetailIsOwner: false,
+        shareSpaceDetailIsLegalCommitted: isLegalCommitted,
+        shareSpaceDetailShareSpaceAmenities: [],
+        shareSpaceDetailAvailabilitiesTimes: availabilities.map(slot => ({
+          ...slot,
+          specificdate: slot.specificdate || null
+        })),
+        shareSpaceDetailShareSpaceCategories: []
+      };
+    }
+
     try {
-      const res = await fetch(`${API_BASE}/api/Listing/Create`, {
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -417,30 +528,85 @@ export default function CreateListingScreen() {
         {/* Loại bài đăng */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Loại bài đăng *</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity 
-              style={[styles.typeBtn, listingType === 0 && styles.typeBtnActive]}
-              onPress={() => setListingType(0)}>
+          <View style={styles.row}>
+            <TouchableOpacity style={[styles.typeBtn, listingType === 0 && styles.typeBtnActive]} onPress={() => setListingType(0)}>
               <Text style={[styles.typeBtnText, listingType === 0 && styles.typeBtnTextActive]}>Thuê dài hạn</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]}
-              onPress={() => setListingType(1)}>
+            <TouchableOpacity style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]} onPress={() => setListingType(1)}>
               <Text style={[styles.typeBtnText, listingType === 1 && styles.typeBtnTextActive]}>Chia sẻ chỗ</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {listingType === 1 && (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Số người tối đa *</Text>
+          <View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Số người thuê chung tối đa *</Text>
               <TextInput style={styles.input} keyboardType="numeric" value={maxRenters} onChangeText={setMaxRenters} placeholder="VD: 5" />
             </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Chỗ trống *</Text>
-              <TextInput style={styles.input} keyboardType="numeric" value={availableSlots} onChangeText={setAvailableSlots} placeholder="VD: 2" />
-            </View>
+
+            <CustomCheckbox label="Cam kết pháp lý *" value={isLegalCommitted} onValueChange={setIsLegalCommitted} />
+
+            <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Khung giờ chia sẻ</Text>
+            {availabilities.map((slot, index) => (
+              <View key={index} style={{ backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontWeight: 'bold', color: '#374151' }}>Khung giờ {index + 1}</Text>
+                  {availabilities.length > 1 && (
+                    <TouchableOpacity onPress={() => setAvailabilities(prev => prev.filter((_, i) => i !== index))}>
+                      <Feather name="trash-2" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {DAYS_OF_WEEK.map(day => {
+                    const isSelected = slot.daysOfWeek.includes(day);
+                    return (
+                      <TouchableOpacity
+                        key={day}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: isSelected ? '#00A67E' : '#D1D5DB', backgroundColor: isSelected ? '#00A67E' : '#fff' }}
+                        onPress={() => {
+                          setAvailabilities(prev => prev.map((s, i) => {
+                            if (i !== index) return s;
+                            const newDays = isSelected ? s.daysOfWeek.filter((d: string) => d !== day) : [...s.daysOfWeek, day];
+                            return { ...s, daysOfWeek: newDays };
+                          }));
+                        }}
+                      >
+                        <Text style={{ color: isSelected ? '#fff' : '#374151', fontSize: 12 }}>{DAYS_LABEL_VI[day]}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <TimeField label="Giờ bắt đầu" value={slot.startTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, startTime: v } : s))} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TimeField label="Giờ kết thúc" value={slot.endTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, endTime: v } : s))} />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <DateField label="Áp dụng từ" value={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validFrom: v } : s))} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <DateField label="Áp dụng đến" value={slot.validTo} minDate={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validTo: v } : s))} />
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: 16 }}
+              onPress={() => setAvailabilities(prev => [...prev, { daysOfWeek: [], specificdate: '', startTime: '08:00', endTime: '12:00', validFrom: getSafeDateOnly(), validTo: getSafeDateOnly() }])}
+            >
+              <Feather name="plus" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#6B7280', fontWeight: '500' }}>Thêm khung giờ khác</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -538,6 +704,42 @@ export default function CreateListingScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Priority Picker Modal */}
+      <Modal visible={showPriorityPicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn gói bài đăng</Text>
+              <TouchableOpacity onPress={() => setShowPriorityPicker(false)}>
+                <Feather name="x" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={priorityLevels}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setPriorityLevelId(item.id);
+                    setShowPriorityPicker(false);
+                  }}
+                >
+                  <Text style={styles.modalItemTitle}>{item.name}</Text>
+                  <Text style={styles.modalItemSub}>{item.price.toLocaleString('vi-VN')} VNĐ</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#6B7280' }}>Không có gói nào khả dụng</Text>
+                </View>
+              }
+              style={{ maxHeight: 400 }}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Space Picker Modal */}
       <Modal visible={showSpacePicker} transparent animationType="slide">

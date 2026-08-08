@@ -54,6 +54,53 @@ function WebDateInput({
   });
 }
 
+const CustomCheckbox = ({ value, onValueChange, label }: any) => (
+  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }} onPress={() => onValueChange(!value)}>
+    <View style={{ width: 20, height: 20, borderWidth: 1, borderColor: '#00A67E', borderRadius: 4, marginRight: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: value ? '#00A67E' : 'transparent' }}>
+      {value && <Feather name="check" size={14} color="#fff" />}
+    </View>
+    {label && <Text style={{ color: '#374151', flex: 1 }}>{label}</Text>}
+  </TouchableOpacity>
+);
+
+const TimeField = ({ label, value, onChange }: any) => {
+  const [show, setShow] = useState(false);
+  const dateObj = new Date();
+  try {
+    const [h, m] = value.split(':');
+    dateObj.setHours(parseInt(h), parseInt(m), 0, 0);
+  } catch(e) {}
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShow(Platform.OS === 'ios');
+    if (selectedDate) {
+      const hh = selectedDate.getHours().toString().padStart(2, '0');
+      const mm = selectedDate.getMinutes().toString().padStart(2, '0');
+      onChange(hh + ':' + mm);
+    }
+  };
+  return (
+    <View>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <TouchableOpacity style={styles.input} onPress={() => setShow(true)}>
+        <Text style={{ color: '#111827' }}>{value}</Text>
+      </TouchableOpacity>
+      {show && (
+        <DateTimePicker
+          value={dateObj}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onDateChange}
+        />
+      )}
+      {Platform.OS === 'ios' && show && (
+        <TouchableOpacity style={{ alignItems: 'center', padding: 8 }} onPress={() => setShow(false)}>
+          <Text style={{ color: '#00A67E', fontWeight: 'bold' }}>Xong</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
 function DateField({
   label,
   value,
@@ -170,13 +217,21 @@ export default function EditListingScreen() {
   const [price, setPrice] = useState('');
   const [listingType, setListingType] = useState<0 | 1>(0);
   const [maxRenters, setMaxRenters] = useState('');
-  const [availableSlots, setAvailableSlots] = useState('');
+  
+  const [isLegalCommitted, setIsLegalCommitted] = useState(false);
+  const [availabilities, setAvailabilities] = useState<any[]>([
+    { daysOfWeek: [], specificdate: '', startTime: '08:00', endTime: '12:00', validFrom: getSafeDateOnly(), validTo: getSafeDateOnly() }
+  ]);
+  
+  const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const DAYS_LABEL_VI: Record<string, string> = {
+    Monday: 'T2', Tuesday: 'T3', Wednesday: 'T4', Thursday: 'T5',
+    Friday: 'T6', Saturday: 'T7', Sunday: 'CN'
+  };
+
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
   
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   useEffect(() => {
@@ -189,13 +244,11 @@ export default function EditListingScreen() {
     loadAuth();
   }, []);
 
-  // Fetch user's spaces and listing data
   useEffect(() => {
     const fetchData = async () => {
       if (!token || !currentUserId || !id) return;
       try {
         setIsLoadingData(true);
-        // Load spaces
         const spaceRes = await fetch(`${API_BASE}/api/Space/GetAll`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -208,7 +261,6 @@ export default function EditListingScreen() {
           setMySpaces(mine);
         }
 
-        // Load listing detail
         const listingRes = await fetch(`${API_BASE}/api/Listing/GetAll`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -224,8 +276,22 @@ export default function EditListingScreen() {
             const type = target.listingType === 'SharedSpace' || target.listingType === 1 ? 1 : 0;
             setListingType(type);
             if (type === 1) {
-              setMaxRenters(target.maxRenters?.toString() || '');
-              setAvailableSlots(target.availableSlots?.toString() || '');
+              const shareDetail = target.shareSpaceDetail || target;
+              setMaxRenters(shareDetail.maxRenters?.toString() || shareDetail.shareSpaceDetailMaxSubRenter?.toString() || '');
+              setIsLegalCommitted(!!shareDetail.isLegalCommitted || !!shareDetail.shareSpaceDetailIsLegalCommitted);
+              if (shareDetail.availabilitiesTimes || shareDetail.shareSpaceDetailAvailabilitiesTimes) {
+                const times = shareDetail.availabilitiesTimes || shareDetail.shareSpaceDetailAvailabilitiesTimes;
+                if (Array.isArray(times) && times.length > 0) {
+                  setAvailabilities(times.map((t: any) => ({
+                    daysOfWeek: t.daysOfWeek || [],
+                    specificdate: t.specificdate || '',
+                    startTime: t.startTime || '08:00',
+                    endTime: t.endTime || '12:00',
+                    validFrom: t.validFrom ? t.validFrom.substring(0, 10) : getSafeDateOnly(),
+                    validTo: t.validTo ? t.validTo.substring(0, 10) : getSafeDateOnly()
+                  })));
+                }
+              }
             }
             if (target.allowedStartTime) setAllowedStartTime(target.allowedStartTime.substring(0, 10));
             if (target.allowedEndTime) setAllowedEndTime(target.allowedEndTime.substring(0, 10));
@@ -287,31 +353,59 @@ export default function EditListingScreen() {
       if (!maxRenters || parseInt(maxRenters) <= 0) {
         return Alert.alert('Lỗi', 'Số lượng người tối đa phải lớn hơn 0!');
       }
-      if (!availableSlots || parseInt(availableSlots) <= 0) {
-        return Alert.alert('Lỗi', 'Số lượng chỗ trống phải lớn hơn 0!');
+      if (availabilities.some(slot => slot.daysOfWeek.length === 0 && !slot.specificdate)) {
+        return Alert.alert('Lỗi', 'Vui lòng chọn ít nhất 1 ngày hoặc ngày cụ thể cho mỗi khung giờ chia sẻ!');
       }
-      if (parseInt(availableSlots) > parseInt(maxRenters)) {
-        return Alert.alert('Lỗi', 'Số lượng chỗ trống không được lớn hơn số lượng người tối đa!');
+      const allowedEnd = new Date(allowedEndTime);
+      const allowedStart = new Date(allowedStartTime);
+      const badSlot = availabilities.find(slot => {
+        const vFrom = new Date(slot.validFrom);
+        const vTo = new Date(slot.validTo);
+        return vTo > allowedEnd || vFrom < allowedStart || vFrom > vTo;
+      });
+      if (badSlot) {
+        return Alert.alert('Lỗi', `Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ!`);
+      }
+      const badTimeSlot = availabilities.find(slot => slot.startTime >= slot.endTime);
+      if (badTimeSlot) {
+        return Alert.alert('Lỗi', 'Giờ kết thúc khung giờ chia sẻ phải sau giờ bắt đầu!');
+      }
+      if (!isLegalCommitted) {
+        return Alert.alert('Lỗi', 'Vui lòng tích "Cam kết pháp lý"!');
       }
     }
 
     setIsSubmitting(true);
 
-    const payload = {
+    let apiUrl = `${API_BASE}/api/Listing/Update/${id}`;
+    let payload: any = {
       spaceId: Number(spaceId),
       allowedStartTime: allowedStartTime.substring(0, 10),
       allowedEndTime: allowedEndTime.substring(0, 10),
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
-      listingType: listingType,
-      maxRenters: listingType === 1 ? parseInt(maxRenters) : null,
-      availableSlots: listingType === 1 ? parseInt(availableSlots) : null,
       listingPictures: [],
     };
 
+    if (listingType === 1) {
+      apiUrl = `${API_BASE}/api/Listing/UpdateShareListing/${id}`;
+      payload = {
+        ...payload,
+        shareSpaceDetailMaxSubRenter: Number(maxRenters),
+        shareSpaceDetailIsOwner: false,
+        shareSpaceDetailIsLegalCommitted: isLegalCommitted,
+        shareSpaceDetailShareSpaceAmenities: [],
+        shareSpaceDetailAvailabilitiesTimes: availabilities.map(slot => ({
+          ...slot,
+          specificdate: slot.specificdate || null
+        })),
+        shareSpaceDetailShareSpaceCategories: []
+      };
+    }
+
     try {
-      const res = await fetch(`${API_BASE}/api/Listing/Update/${id}`, {
+      const res = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -323,7 +417,6 @@ export default function EditListingScreen() {
 
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
-        console.error('Listing/Update error:', res.status, errBody);
         let errMsg = 'Cập nhật bài đăng thất bại!';
         try {
           const parsed = JSON.parse(errBody);
@@ -365,7 +458,6 @@ export default function EditListingScreen() {
         });
 
         if (!picRes.ok) {
-          console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
           Alert.alert('Cảnh báo', 'Cập nhật thành công nhưng tải ảnh lên thất bại!');
           return router.back();
         }
@@ -403,7 +495,6 @@ export default function EditListingScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Chọn mặt bằng */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Mặt bằng *</Text>
             <TouchableOpacity
@@ -422,33 +513,89 @@ export default function EditListingScreen() {
             )}
           </View>
 
+
           {/* Loại bài đăng */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Loại bài đăng *</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity 
-                style={[styles.typeBtn, listingType === 0 && styles.typeBtnActive]}
-                onPress={() => setListingType(0)}>
+            <View style={styles.row}>
+              <TouchableOpacity style={[styles.typeBtn, listingType === 0 && styles.typeBtnActive]} onPress={() => setListingType(0)}>
                 <Text style={[styles.typeBtnText, listingType === 0 && styles.typeBtnTextActive]}>Thuê dài hạn</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]}
-                onPress={() => setListingType(1)}>
+              <TouchableOpacity style={[styles.typeBtn, listingType === 1 && styles.typeBtnActive]} onPress={() => setListingType(1)}>
                 <Text style={[styles.typeBtnText, listingType === 1 && styles.typeBtnTextActive]}>Chia sẻ chỗ</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {listingType === 1 && (
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Số người tối đa *</Text>
+            <View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Số người thuê chung tối đa *</Text>
                 <TextInput style={styles.input} keyboardType="numeric" value={maxRenters} onChangeText={setMaxRenters} placeholder="VD: 5" />
               </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Chỗ trống *</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={availableSlots} onChangeText={setAvailableSlots} placeholder="VD: 2" />
-              </View>
+
+              <CustomCheckbox label="Cam kết pháp lý *" value={isLegalCommitted} onValueChange={setIsLegalCommitted} />
+
+              <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Khung giờ chia sẻ</Text>
+              {availabilities.map((slot, index) => (
+                <View key={index} style={{ backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ fontWeight: 'bold', color: '#374151' }}>Khung giờ {index + 1}</Text>
+                    {availabilities.length > 1 && (
+                      <TouchableOpacity onPress={() => setAvailabilities(prev => prev.filter((_, i) => i !== index))}>
+                        <Feather name="trash-2" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {DAYS_OF_WEEK.map(day => {
+                      const isSelected = slot.daysOfWeek.includes(day);
+                      return (
+                        <TouchableOpacity
+                          key={day}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: isSelected ? '#00A67E' : '#D1D5DB', backgroundColor: isSelected ? '#00A67E' : '#fff' }}
+                          onPress={() => {
+                            setAvailabilities(prev => prev.map((s, i) => {
+                              if (i !== index) return s;
+                              const newDays = isSelected ? s.daysOfWeek.filter((d: string) => d !== day) : [...s.daysOfWeek, day];
+                              return { ...s, daysOfWeek: newDays };
+                            }));
+                          }}
+                        >
+                          <Text style={{ color: isSelected ? '#fff' : '#374151', fontSize: 12 }}>{DAYS_LABEL_VI[day]}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <TimeField label="Giờ bắt đầu" value={slot.startTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, startTime: v } : s))} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <TimeField label="Giờ kết thúc" value={slot.endTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, endTime: v } : s))} />
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <DateField label="Áp dụng từ" value={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validFrom: v } : s))} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <DateField label="Áp dụng đến" value={slot.validTo} minDate={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validTo: v } : s))} />
+                    </View>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed', marginBottom: 16 }}
+                onPress={() => setAvailabilities(prev => [...prev, { daysOfWeek: [], specificdate: '', startTime: '08:00', endTime: '12:00', validFrom: getSafeDateOnly(), validTo: getSafeDateOnly() }])}
+              >
+                <Feather name="plus" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#6B7280', fontWeight: '500' }}>Thêm khung giờ khác</Text>
+              </TouchableOpacity>
             </View>
           )}
 
