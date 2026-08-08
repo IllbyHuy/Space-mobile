@@ -217,16 +217,28 @@ export default function ChatScreen() {
     const isRevokedMessage = text.includes('❌') && text.includes('thu hồi');
     const contractRegex = /Hợp đồng \(Mã: #(\d+)\)/i;
     const match = text.match(contractRegex);
+    const isOnlyNumber = /^\d+$/.test(text.trim());
 
     const textColor = isMe ? '#fff' : '#111827';
+    let contractId = null;
+    let displayText = text;
 
-    if (match && match[1] && !isRevokedMessage) {
+    if (!isRevokedMessage) {
+      if (isOnlyNumber) {
+        contractId = text.trim();
+        displayText = `📄 Tôi vừa tạo và gửi một Hợp đồng (Mã: #${contractId}). Vui lòng kiểm tra và xác nhận nhé!`;
+      } else if (match && match[1]) {
+        contractId = match[1];
+      }
+    }
+
+    if (contractId) {
       return (
         <View>
-          <Text style={{ color: textColor, fontSize: 14, lineHeight: 20 }}>{text}</Text>
+          <Text style={{ color: textColor, fontSize: 14, lineHeight: 20 }}>{displayText}</Text>
           <TouchableOpacity
             style={styles.contractBtn}
-            onPress={() => router.push(`/contract/contract-details?contractId=${match[1]}`)}
+            onPress={() => router.push(`/contract/contract-details?contractId=${contractId}`)}
           >
             <Feather name="file-text" size={14} color="#fff" />
             <Text style={styles.contractBtnText}>Xem Hợp Đồng</Text>

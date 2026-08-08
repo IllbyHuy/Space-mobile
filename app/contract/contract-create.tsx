@@ -282,10 +282,21 @@ export default function ContractCreateScreen() {
     if (!contractData.primaryBookingRequestId) return Alert.alert('Lỗi', 'Vui lòng chọn yêu cầu đặt thuê!');
     if (!contractData.spaceId) return Alert.alert('Lỗi', 'Vui lòng chọn mặt bằng!');
     if (!contractData.duration || !contractData.durationUnit) return Alert.alert('Lỗi', 'Vui lòng nhập thời lượng!');
+    if (Number(contractData.duration) <= 0) return Alert.alert('Lỗi', 'Thời lượng phải lớn hơn 0!');
     if (!contractData.startDate) return Alert.alert('Lỗi', 'Vui lòng chọn ngày bắt đầu!');
     if (!contractData.price) return Alert.alert('Lỗi', 'Vui lòng nhập giá thuê!');
+    if (Number(contractData.price) <= 0) return Alert.alert('Lỗi', 'Giá thuê phải lớn hơn 0!');
     if (!contractData.depositAmount) return Alert.alert('Lỗi', 'Vui lòng nhập tiền cọc!');
+    if (Number(contractData.depositAmount) <= 0) return Alert.alert('Lỗi', 'Tiền cọc phải lớn hơn 0!');
+    if (!contractData.acreage) return Alert.alert('Lỗi', 'Vui lòng nhập diện tích!');
+    if (Number(contractData.acreage) <= 0) return Alert.alert('Lỗi', 'Diện tích phải lớn hơn 0!');
     if (!contractData.businessPurpose.trim()) return Alert.alert('Lỗi', 'Vui lòng nhập mục đích kinh doanh!');
+    if (!isEditMode && !selectedTemplateId) return Alert.alert('Lỗi', 'Vui lòng chọn mẫu hợp đồng!');
+    
+    const selectedRequest = matchedRequests.find(r => String(r.id) === String(contractData.primaryBookingRequestId));
+    if (selectedRequest && selectedRequest.spaceId && String(selectedRequest.spaceId) !== String(contractData.spaceId)) {
+      return Alert.alert('Lỗi', 'Mặt bằng đã chọn không khớp với mặt bằng của yêu cầu thuê này!');
+    }
     
     setIsSubmitting(true);
     const roomId = activeChat?.conversationId || activeChat?.id || activeChat?.Id;
@@ -344,22 +355,6 @@ export default function ContractCreateScreen() {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
-
-          // Send message to chat via API since we don't have direct SignalR connection here
-          const roomId = activeChat?.conversationId || activeChat?.id || activeChat?.Id;
-          if (roomId) {
-            await fetch(`${API_BASE}/api/Message/SendMessage`, {
-              method: 'POST',
-              headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                conversationId: roomId,
-                content: `📄 Tôi vừa tạo và gửi một Hợp đồng (Mã: #${newContractId}). Vui lòng kiểm tra và xác nhận nhé!`
-              })
-            });
-          }
         }
         Alert.alert('Thành công', 'Tạo hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
       }
@@ -407,8 +402,14 @@ export default function ContractCreateScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Yêu cầu đặt thuê (Bắt buộc) *</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowRequestPicker(true)}>
-            <Text style={styles.pickerText}>
-              {contractData.primaryBookingRequestId ? `Yêu cầu #${contractData.primaryBookingRequestId}` : 'Chọn yêu cầu thuê'}
+            <Text style={[styles.pickerText, { flex: 1 }]} numberOfLines={1}>
+              {contractData.primaryBookingRequestId 
+                ? (() => {
+                    const req = matchedRequests.find(r => r.id === contractData.primaryBookingRequestId);
+                    const space = mySpaces.find(s => String(s.id || s.Id) === String(req?.spaceId));
+                    return req ? `Yêu cầu #${req.id} - ${space?.name || 'Mặt bằng trống'} - ${Number(req.offeredPrice || 0).toLocaleString('vi-VN')} VNĐ` : `Yêu cầu #${contractData.primaryBookingRequestId}`;
+                  })()
+                : 'Chọn yêu cầu thuê'}
             </Text>
             <Feather name="chevron-down" size={20} color="#6B7280" />
           </TouchableOpacity>
@@ -563,8 +564,20 @@ export default function ContractCreateScreen() {
           </View>
         </View>
 
+        {!isEditMode && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Mẫu hợp đồng *</Text>
+            <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTemplatePicker(true)}>
+              <Text style={styles.pickerText}>
+                {CONTRACT_TEMPLATES.find(t => t.id === selectedTemplateId)?.label || 'Chọn mẫu hợp đồng'}
+              </Text>
+              <Feather name="chevron-down" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Mô tả / Điều khoản</Text>
+          <Text style={styles.label}>Mô tả / Điều khoản *</Text>
           <TextInput
             style={[styles.input, { height: 180, textAlignVertical: 'top' }]}
             multiline
@@ -572,21 +585,6 @@ export default function ContractCreateScreen() {
             onChangeText={val => setContractData({ ...contractData, description: val })}
           />
         </View>
-
-        {!isEditMode && (
-          <View style={[styles.inputGroup, { marginTop: 16 }]}>
-            <Text style={styles.label}>Mẫu hợp đồng</Text>
-            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8, fontStyle: 'italic' }}>
-              Vui lòng nhập đầy đủ thông tin phía trên trước khi chọn mẫu hợp đồng.
-            </Text>
-            <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTemplatePicker(true)}>
-              <Text style={styles.pickerText}>
-                {CONTRACT_TEMPLATES.find(t => t.id === selectedTemplateId)?.label || 'Chọn mẫu hợp đồng (tuỳ chọn)'}
-              </Text>
-              <Feather name="chevron-down" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-        )}
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
           <TouchableOpacity 
@@ -606,7 +604,20 @@ export default function ContractCreateScreen() {
       </ScrollView>
 
       {renderPickerModal(showSpacePicker, setShowSpacePicker, 'Chọn mặt bằng', mySpaces, (val) => setContractData({ ...contractData, spaceId: val }), 'name', 'id')}
-      {renderPickerModal(showRequestPicker, setShowRequestPicker, 'Chọn yêu cầu', matchedRequests, (val) => setContractData({ ...contractData, primaryBookingRequestId: val }), 'id', 'id')}
+      {renderPickerModal(showRequestPicker, setShowRequestPicker, 'Chọn yêu cầu', matchedRequests.map(req => {
+        const space = mySpaces.find(s => String(s.id || s.Id) === String(req.spaceId));
+        return {
+          ...req,
+          displayLabel: `Yêu cầu #${req.id} - ${space?.name || 'Mặt bằng trống'} - ${Number(req.offeredPrice || 0).toLocaleString('vi-VN')} VNĐ`
+        };
+      }), (val) => {
+        const req = matchedRequests.find(r => r.id === val);
+        setContractData({ 
+          ...contractData, 
+          primaryBookingRequestId: val,
+          ...(req?.spaceId ? { spaceId: String(req.spaceId) } : {})
+        });
+      }, 'displayLabel', 'id')}
       {renderPickerModal(showUnitPicker, setShowUnitPicker, 'Chọn đơn vị', DURATION_UNITS, (val) => setContractData({ ...contractData, durationUnit: val }), 'label', 'value')}
       {renderPickerModal(showTemplatePicker, setShowTemplatePicker, 'Chọn mẫu hợp đồng', CONTRACT_TEMPLATES, (val) => setSelectedTemplateId(val), 'label', 'id')}
       {renderPickerModal(showDayPicker, setShowDayPicker, 'Chọn thứ', [

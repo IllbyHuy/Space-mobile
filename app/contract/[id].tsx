@@ -10,6 +10,7 @@ import {
   CONTRACT_STATUS_LABEL, CONTRACT_STATUS_COLOR, formatCurrency, formatDate,
   formatDurationUnit, getSignFlags, getSigningSessionStarted, extractServerMessage
 } from '@/utils/contract';
+import { splitContractHeaderBody } from '@/utils/contractTemplates';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
@@ -323,12 +324,18 @@ export default function ContractDetailScreen() {
           </View>
         ) : null}
 
-        {contract.description ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nội dung điều khoản</Text>
-            <Text style={styles.description}>{contract.description}</Text>
-          </View>
-        ) : null}
+        {contract.description ? (() => {
+          const { header, body } = splitContractHeaderBody(contract.description);
+          return (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Nội dung điều khoản</Text>
+              {!!header && (
+                <Text style={[styles.description, { textAlign: 'center', fontWeight: 'bold', marginBottom: 12 }]}>{header}</Text>
+              )}
+              <Text style={styles.description}>{body}</Text>
+            </View>
+          );
+        })() : null}
 
         {/* KHU VỰC KÝ HỢP ĐỒNG */}
         {!isFullyActive && status === 'Draft' && (

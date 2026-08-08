@@ -90,9 +90,16 @@ export default function ContractDetailsScreen() {
   const handleStartSession = async () => {
     setIsProcessing(true);
     try {
+      const lessorId = contract?.lessorId || contract?.LessorId;
+      const lesseeId = contract?.lesseeId || contract?.LesseeId;
+
       const res = await fetch(`${API_BASE}/api/Contract/${contractId}/start-signing`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ lessorId, lesseeId })
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
