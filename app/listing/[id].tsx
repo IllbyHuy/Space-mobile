@@ -410,9 +410,9 @@ export default function ListingDetailScreen() {
         <View style={styles.contentBody}>
           {/* 2. HEADER THÔNG TIN */}
           <View style={styles.titleSection}>
-            <View style={styles.tagWrap}>
-              <Text style={styles.tagText}>
-                {isHourly ? "Share theo giờ" : "Thuê dài hạn"}
+            <View style={[styles.tagWrap, isHourly ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }]}>
+              <Text style={[styles.tagText, isHourly ? { color: '#1D4ED8' } : { color: '#047857' }]}>
+                {isHourly ? "Chia sẻ chỗ" : "Thuê dài hạn"}
               </Text>
             </View>
             <Text style={styles.title}>

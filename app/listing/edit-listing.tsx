@@ -295,6 +295,13 @@ export default function EditListingScreen() {
             }
             if (target.allowedStartTime) setAllowedStartTime(target.allowedStartTime.substring(0, 10));
             if (target.allowedEndTime) setAllowedEndTime(target.allowedEndTime.substring(0, 10));
+            if (target.listingPictures && Array.isArray(target.listingPictures)) {
+              setSelectedImages(target.listingPictures.map((pic: any) => ({
+                uri: pic.imageUrl,
+                id: pic.id,
+                publicId: pic.publicId,
+              })));
+            }
           }
         }
       } catch (error) {
@@ -320,7 +327,31 @@ export default function EditListingScreen() {
     }
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = async (index: number) => {
+    const imgToRemove = selectedImages[index] as any;
+    // Nếu ảnh đã có trên server (có publicId hoặc id) thì gọi API xóa
+    const publicId = imgToRemove.publicId || imgToRemove.id;
+    
+    if (publicId && typeof publicId === 'string') {
+      try {
+        const res = await fetch(`${API_BASE}/api/Picture/${publicId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: '*/*',
+          },
+        });
+        if (!res.ok) {
+          Alert.alert('Lỗi', 'Không thể xóa ảnh này trên hệ thống!');
+          return;
+        }
+      } catch (err) {
+        console.error('Lỗi xóa ảnh:', err);
+        Alert.alert('Lỗi', 'Có lỗi xảy ra khi xóa ảnh!');
+        return;
+      }
+    }
+    
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -426,12 +457,12 @@ export default function EditListingScreen() {
       }
 
       const createdListingId = id;
+      const newImages = selectedImages.filter(img => !(img as any).id);
 
-      if (selectedImages.length > 0 && createdListingId) {
+      if (newImages.length > 0 && createdListingId) {
         const formData = new FormData();
-        for (let i = 0; i < selectedImages.length; i++) {
-          const img = selectedImages[i];
-          if ((img as any).id) continue;
+        for (let i = 0; i < newImages.length; i++) {
+          const img = newImages[i];
           if (Platform.OS === 'web') {
             const fetchRes = await fetch(img.uri);
             const blob = await fetchRes.blob();

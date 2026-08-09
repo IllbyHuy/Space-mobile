@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, ActivityIndicator, Switch, Modal, FlatList
+  Alert, ActivityIndicator, Switch, Modal, FlatList, Image, Platform
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
@@ -53,6 +54,9 @@ export default function CreateSpaceScreen() {
 
   // Amenities
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+
+  // Images
+  const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   // Business categories
   const [apiCategories, setApiCategories] = useState<any[]>([]);
@@ -177,6 +181,22 @@ export default function CreateSpaceScreen() {
     );
   };
 
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedImages((prev) => [...prev, ...result.assets]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const toggleDay = (dayOfWeek: number) => {
     setOperatingHours(prev =>
       prev.map(item =>
@@ -292,6 +312,51 @@ export default function CreateSpaceScreen() {
         const errBody = await res.text().catch(() => '');
         console.error('Space/Create error:', res.status, errBody);
         throw new Error('Không thể tạo mặt bằng. Kiểm tra lại thông tin!');
+      }
+
+      const resText = await res.text();
+      let createdSpaceId;
+      try {
+        const resData = JSON.parse(resText);
+        createdSpaceId = resData.id || resData.data?.id || resData;
+      } catch {
+        createdSpaceId = resText;
+      }
+
+      if (selectedImages.length > 0 && createdSpaceId) {
+        const formData = new FormData();
+        for (let i = 0; i < selectedImages.length; i++) {
+          const img = selectedImages[i];
+          if (Platform.OS === 'web') {
+            const fetchRes = await fetch(img.uri);
+            const blob = await fetchRes.blob();
+            formData.append('file', blob, img.fileName || `image_${i}.jpg`);
+          } else {
+            const filename = img.fileName || img.uri.split('/').pop() || `image_${i}.jpg`;
+            const type = img.mimeType || 'image/jpeg';
+            formData.append('file', {
+              uri: img.uri,
+              name: filename,
+              type,
+            } as any);
+          }
+        }
+        formData.append('spaceId', createdSpaceId.toString());
+
+        const picRes = await fetch(`${API_BASE}/api/Picture`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: '*/*',
+          },
+          body: formData,
+        });
+
+        if (!picRes.ok) {
+          console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
+          Alert.alert('Cảnh báo', 'Tạo mặt bằng thành công nhưng tải ảnh lên thất bại!');
+          return router.back();
+        }
       }
 
       Alert.alert('Thành công', 'Đã tạo mặt bằng thành công!', [
@@ -530,6 +595,26 @@ export default function CreateSpaceScreen() {
           );
         })}
 
+        {/* Hình ảnh */}
+        <Text style={styles.sectionTitle}>Hình ảnh mặt bằng (Tùy chọn)</Text>
+        <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
+          <Feather name="image" size={20} color="#00A67E" />
+          <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
+        </TouchableOpacity>
+
+        {selectedImages.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+            {selectedImages.map((img, idx) => (
+              <View key={idx} style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
+                  <Feather name="x" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
         {/* SUBMIT */}
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
@@ -622,6 +707,21 @@ const styles = StyleSheet.create({
     fontSize: 14, color: '#111827', width: 65, textAlign: 'center',
   },
   timeSep: { color: '#94A3B8', fontSize: 16 },
+
+  pickImageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
+    borderStyle: 'dashed', borderRadius: 8, padding: 16, marginBottom: 12, gap: 8
+  },
+  pickImageText: { color: '#00A67E', fontWeight: '500' },
+  imagePreviewContainer: { flexDirection: 'row', marginBottom: 16 },
+  imagePreviewWrapper: { marginRight: 12, position: 'relative' },
+  imagePreview: { width: 80, height: 80, borderRadius: 8 },
+  removeImageBtn: {
+    position: 'absolute', top: -6, right: -6, backgroundColor: 'red',
+    borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff'
+  },
 
   submitBtn: {
     backgroundColor: '#00A67E', paddingVertical: 14, borderRadius: 10,

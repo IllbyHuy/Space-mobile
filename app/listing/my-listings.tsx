@@ -101,10 +101,17 @@ export default function MyListingsScreen() {
           <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-          <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
-            <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText, { fontSize: 10 }]}>
-              {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
-            </Text>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
+              <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText, { fontSize: 10 }]}>
+                {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
+              </Text>
+            </View>
+            <View style={[styles.statusBadge, (item.listingType === 'SharedSpace' || item.listingType === 1) ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
+              <Text style={[styles.statusText, (item.listingType === 'SharedSpace' || item.listingType === 1) ? { color: '#1D4ED8' } : { color: '#047857' }, { fontSize: 10 }]}>
+                {(item.listingType === 'SharedSpace' || item.listingType === 1) ? 'Chia sẻ chỗ' : 'Dài hạn'}
+              </Text>
+            </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity onPress={() => router.push(`/listing/${item.id || item.Id}`)}>
