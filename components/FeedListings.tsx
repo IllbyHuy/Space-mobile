@@ -33,17 +33,32 @@ export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '', sh
 
         let spaces: any[] = [];
         if (spaceRes.ok) spaces = await spaceRes.json();
+        
+        let allSpacesAndParts: any[] = [...spaces];
+        await Promise.all(spaces.map(async (s) => {
+          try {
+            const partRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetByParent/${s.id || s.Id}`, { headers: { accept: '*/*' } });
+            if (partRes.ok) {
+              const partData = await partRes.json();
+              const parts = Array.isArray(partData) ? partData : (partData?.items || []);
+              parts.forEach((p: any) => {
+                allSpacesAndParts.push({ ...p, isSpacePart: true });
+              });
+            }
+          } catch(e) {}
+        }));
 
         if (listingRes.ok) {
           const listingData = await listingRes.json();
           let safeData = Array.isArray(listingData) ? listingData : (listingData?.data || listingData?.items || []);
 
           safeData = safeData.map((item: any) => {
-            const parentSpace = spaces.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
+            const parentSpace = allSpacesAndParts.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
             return {
               ...item,
               area: item.area || parentSpace?.area || null,
-              address: item.spaceAddress || item.location || item.address || parentSpace?.address || parentSpace?.location || ''
+              address: item.spaceAddress || item.location || item.address || parentSpace?.address || parentSpace?.location || '',
+              isSpacePart: parentSpace?.isSpacePart || false
             };
           });
 
@@ -139,10 +154,17 @@ export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '', sh
             <Text style={styles.authorName}>Chủ nhà {item.lessorName || 'Ẩn danh'}</Text>
             <Text style={styles.timeAndLocation}>2 giờ trước • 📍 {item.address?.substring(0, 20) || 'TP.HCM'}</Text>
           </View>
-          <View style={styles.badgeWrapper}>
-            <Text style={[styles.badgeText, { color: isHourly ? '#1d4ed8' : '#047857' }]}>
-               {isHourly ? 'Theo giờ' : 'Dài hạn'}
-            </Text>
+          <View style={[styles.badgeWrapper, { flexDirection: 'row', gap: 6, backgroundColor: 'transparent', paddingHorizontal: 0, paddingVertical: 0 }]}>
+            {item.isSpacePart && (
+              <View style={[styles.badgeWrapper, { backgroundColor: '#F3E8FF' }]}>
+                <Text style={[styles.badgeText, { color: '#7E22CE' }]}>Từ MB gốc</Text>
+              </View>
+            )}
+            <View style={styles.badgeWrapper}>
+              <Text style={[styles.badgeText, { color: isHourly ? '#1d4ed8' : '#047857' }]}>
+                 {isHourly ? 'Theo giờ' : 'Dài hạn'}
+              </Text>
+            </View>
           </View>
         </View>
 

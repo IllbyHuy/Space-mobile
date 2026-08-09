@@ -103,9 +103,22 @@ export default function ListingDetailScreen() {
           );
 
           if (found) {
-            const parentSpace = spaces.find(
+            let parentSpace = spaces.find(
               (s: any) => (s.id || s.Id) === (found.spaceId || found.SpaceId),
             );
+            let isSpacePart = false;
+
+            if (!parentSpace) {
+              // Try to fetch space part info
+              try {
+                const spRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${found.spaceId || found.SpaceId}`);
+                if (spRes.ok) {
+                  parentSpace = await spRes.json();
+                  isSpacePart = true;
+                }
+              } catch(e) {}
+            }
+
             const merged = {
               ...found,
               area: found.area || parentSpace?.area || null,
@@ -122,6 +135,7 @@ export default function ListingDetailScreen() {
                 found.spaceAllowedCategories ||
                 parentSpace?.spaceAllowedCategories ||
                 [],
+              isSpacePart,
             };
             // Store the parent space's ownerId for owner detection
             if (parentSpace) {
@@ -410,10 +424,17 @@ export default function ListingDetailScreen() {
         <View style={styles.contentBody}>
           {/* 2. HEADER THÔNG TIN */}
           <View style={styles.titleSection}>
-            <View style={[styles.tagWrap, isHourly ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }]}>
-              <Text style={[styles.tagText, isHourly ? { color: '#1D4ED8' } : { color: '#047857' }]}>
-                {isHourly ? "Chia sẻ chỗ" : "Thuê dài hạn"}
-              </Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              <View style={[styles.tagWrap, isHourly ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }]}>
+                <Text style={[styles.tagText, isHourly ? { color: '#1D4ED8' } : { color: '#047857' }]}>
+                  {isHourly ? "Chia sẻ chỗ" : "Thuê dài hạn"}
+                </Text>
+              </View>
+              {listing.isSpacePart && (
+                <View style={[styles.tagWrap, { backgroundColor: '#F3E8FF' }]}>
+                  <Text style={[styles.tagText, { color: '#7E22CE' }]}>Từ MB gốc</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.title}>
               {listing.name || "Mặt bằng cho thuê"}
@@ -541,6 +562,56 @@ export default function ListingDetailScreen() {
               </View>
             </View>
           )}
+
+          {/* BỔ SUNG: LỊCH SỬ GIÁ CHO THUÊ (như Web) */}
+          <View style={styles.descSection}>
+            <Text style={styles.sectionTitle}>Lịch sử giá cho thuê</Text>
+            <View style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 8, padding: 16, backgroundColor: '#fff', gap: 16 }}>
+              <View>
+                <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Giá hiện tại</Text>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#00A67E' }}>
+                  {listing.price ? `${listing.price.toLocaleString('vi-VN')} ₫` : 'N/A'}
+                </Text>
+              </View>
+              <View>
+                <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Biến động trong 1 tháng</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Feather name="trending-up" size={16} color="#00A67E" />
+                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#333' }}>0% (Giữ giá)</Text>
+                </View>
+              </View>
+              <View>
+                <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Đánh giá thị trường</Text>
+                <Text style={{ fontSize: 14, color: '#333', fontWeight: '500' }}>⭐ Giá phổ biến khu vực</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* BỔ SUNG: THÔNG TIN THÊM (Ngày đăng, mã, etc) */}
+          <View style={[styles.descSection, { paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', marginBottom: 20 }]}>
+             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <View style={{ width: '48%', marginBottom: 16 }}>
+                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12}/> Ngày đăng</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
+                    {listing.createdAt ? new Date(listing.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'}
+                  </Text>
+                </View>
+                <View style={{ width: '48%', marginBottom: 16 }}>
+                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12}/> Ngày hết hạn</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
+                    {listing.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : 'Sau 30 ngày'}
+                  </Text>
+                </View>
+                <View style={{ width: '48%' }}>
+                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="hash" size={12}/> Mã tin</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>#{listing.id || listing.Id}</Text>
+                </View>
+                <View style={{ width: '48%' }}>
+                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12}/> Tình trạng</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
+                </View>
+             </View>
+          </View>
 
           {/* 9. BẢN ĐỒ (HỖ TRỢ CẢ WEB VÀ MOBILE) */}
           <View style={styles.descSection}>

@@ -49,9 +49,10 @@ export default function MyListingsScreen() {
         { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
       );
       let mySpaceIds: any[] = [];
+      let mySpaces: any[] = [];
       if (spaceRes.ok) {
         const spaceData = await spaceRes.json();
-        const mySpaces = Array.isArray(spaceData) ? spaceData : (spaceData?.data || spaceData?.items || []);
+        mySpaces = Array.isArray(spaceData) ? spaceData : (spaceData?.data || spaceData?.items || []);
         mySpaceIds = mySpaces.map((s: any) => s.id || s.Id);
       }
 
@@ -63,6 +64,21 @@ export default function MyListingsScreen() {
         const data = await res.json();
         const allListings = Array.isArray(data) ? data : (data?.data || data?.items || []);
         
+        const allSpacesAndParts: any[] = [...mySpaces];
+        await Promise.all(mySpaces.map(async (s: any) => {
+          try {
+            const partRes = await fetch(`${API_BASE}/api/SpacePart/GetByParent/${s.id || s.Id}`, { headers: { accept: '*/*' } });
+            if (partRes.ok) {
+              const partData = await partRes.json();
+              const parts = Array.isArray(partData) ? partData : (partData?.items || []);
+              parts.forEach((p: any) => {
+                allSpacesAndParts.push({ ...p, isSpacePart: true });
+                mySpaceIds.push(p.id || p.Id);
+              });
+            }
+          } catch(e) {}
+        }));
+
         // STEP 3: Filter by spaceId match (same logic as web)
         const myListings = allListings.filter((l: any) => {
           const spId = l.spaceId || l.SpaceId;
@@ -70,6 +86,13 @@ export default function MyListingsScreen() {
             String(l.ownerId || '') === String(currentUserId) ||
             String(l.creatorId || '') === String(currentUserId) ||
             String(l.createdBy || '') === String(currentUserId);
+        }).map((item: any) => {
+          const parentSpace = allSpacesAndParts.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
+          return {
+            ...item,
+            area: item.area || parentSpace?.area || null,
+            isSpacePart: parentSpace?.isSpacePart || false
+          };
         });
         
         setListings(myListings);
@@ -101,7 +124,7 @@ export default function MyListingsScreen() {
           <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
               <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText, { fontSize: 10 }]}>
                 {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
@@ -109,9 +132,14 @@ export default function MyListingsScreen() {
             </View>
             <View style={[styles.statusBadge, (item.listingType === 'SharedSpace' || item.listingType === 1) ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
               <Text style={[styles.statusText, (item.listingType === 'SharedSpace' || item.listingType === 1) ? { color: '#1D4ED8' } : { color: '#047857' }, { fontSize: 10 }]}>
-                {(item.listingType === 'SharedSpace' || item.listingType === 1) ? 'Chia sẻ chỗ' : 'Dài hạn'}
+                {(item.listingType === 'SharedSpace' || item.listingType === 1) ? 'Theo giờ' : 'Dài hạn'}
               </Text>
             </View>
+            {item.isSpacePart && (
+              <View style={[styles.statusBadge, { backgroundColor: '#F3E8FF', alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
+                <Text style={[styles.statusText, { color: '#7E22CE', fontSize: 10 }]}>Từ MB gốc</Text>
+              </View>
+            )}
           </View>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity onPress={() => router.push(`/listing/${item.id || item.Id}`)}>

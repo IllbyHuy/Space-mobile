@@ -297,7 +297,28 @@ export default function CreateListingScreen() {
         );
         if (res.ok) {
           const data = await res.json();
-          setMySpaces(Array.isArray(data) ? data : data?.data || []);
+          const spaces = Array.isArray(data) ? data : data?.data || [];
+          
+          let allSpacesAndParts: any[] = [];
+          
+          for (const space of spaces) {
+            allSpacesAndParts.push({ ...space, isPart: false });
+            try {
+              const partRes = await fetch(`${API_BASE}/api/SpacePart/GetByParent/${space.id || space.Id}`, {
+                headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
+              });
+              if (partRes.ok) {
+                const partData = await partRes.json();
+                const parts = Array.isArray(partData) ? partData : (partData?.items || []);
+                parts.forEach((p: any) => {
+                  allSpacesAndParts.push({ ...p, isPart: true, parentName: space.name });
+                });
+              }
+            } catch (err) {
+              console.error("Lỗi lấy space part", err);
+            }
+          }
+          setMySpaces(allSpacesAndParts);
         }
       } catch (err) {
         console.error('Lỗi lấy dữ liệu:', err);
@@ -514,7 +535,7 @@ export default function CreateListingScreen() {
             onPress={() => setShowSpacePicker(true)}
           >
             <Text style={selectedSpace ? styles.pickerText : styles.pickerPlaceholder}>
-              {selectedSpace ? selectedSpace.name : '-- Chọn mặt bằng --'}
+              {selectedSpace ? (selectedSpace.isPart ? `${selectedSpace.name} (Thuộc: ${selectedSpace.parentName})` : selectedSpace.name) : '-- Chọn mặt bằng --'}
             </Text>
             <Feather name="chevron-down" size={18} color="#6B7280" />
           </TouchableOpacity>
@@ -782,7 +803,7 @@ export default function CreateListingScreen() {
                     setShowSpacePicker(false);
                   }}
                 >
-                  <Text style={styles.modalItemTitle}>{item.name}</Text>
+                  <Text style={styles.modalItemTitle}>{item.isPart ? `${item.name} (Thuộc: ${item.parentName})` : item.name}</Text>
                   <Text style={styles.modalItemSub}>
                     {item.address || 'Chưa có địa chỉ'} • {item.area ? `${item.area} m²` : ''}
                   </Text>

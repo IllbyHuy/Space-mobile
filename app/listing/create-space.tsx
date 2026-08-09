@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, ActivityIndicator, Switch, Modal, FlatList, Image, Platform
+  Alert, ActivityIndicator, Switch, Modal, FlatList
 } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
@@ -30,14 +29,20 @@ const DAYS_OF_WEEK = [
 export default function CreateSpaceScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { id } = useLocalSearchParams();
+  const isEditing = !!id;
 
   const [token, setToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Basic info
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [area, setArea] = useState('');
+  
+  // original city string when editing
+  const [originalCity, setOriginalCity] = useState('');
 
   // Address cascade: Province -> District -> Ward
   const [provinces, setProvinces] = useState<{ value: string; label: string }[]>([]);
@@ -55,9 +60,6 @@ export default function CreateSpaceScreen() {
   // Amenities
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
-  // Images
-  const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
-
   // Business categories
   const [apiCategories, setApiCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('');
@@ -66,7 +68,7 @@ export default function CreateSpaceScreen() {
   const [operatingHours, setOperatingHours] = useState(
     DAYS_OF_WEEK.map(day => ({
       dayOfWeek: day.id,
-      enabled: day.id !== 0, // Chủ nhật mặc định tắt
+      enabled: day.id !== 0,
       openTime: '08:00',
       closeTime: '22:00',
     }))
@@ -121,6 +123,58 @@ export default function CreateSpaceScreen() {
     };
     fetchCategories();
   }, []);
+
+  // Fetch space if editing
+  useEffect(() => {
+    if (!isEditing || !token) return;
+
+    const fetchSpace = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/Space/GetById${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setName(data.name || '');
+          setAddress(data.address || '');
+          setArea(data.area ? String(data.area) : '');
+          setOriginalCity(data.city || '');
+          setProvinceLabel(data.city || '');
+
+          if (data.amenities) {
+            setSelectedAmenities(data.amenities.map((a: any) => a.name));
+          }
+
+          if (data.spaceAllowedCategories && data.spaceAllowedCategories.length > 0) {
+            setSelectedCategoryId(data.spaceAllowedCategories[0].bussinessCategoryId);
+          }
+
+          if (data.operatingHours && data.operatingHours.length > 0) {
+            const mappedHours = DAYS_OF_WEEK.map(day => {
+              const backendDayId = day.id === 0 ? 0 : day.id - 1;
+              const found = data.operatingHours.find((h: any) => h.dayOfWeek === backendDayId);
+              if (found) {
+                return {
+                  dayOfWeek: day.id,
+                  enabled: true,
+                  openTime: found.openTime ? found.openTime.substring(0, 5) : '08:00',
+                  closeTime: found.closeTime ? found.closeTime.substring(0, 5) : '22:00'
+                };
+              }
+              return { dayOfWeek: day.id, enabled: false, openTime: '08:00', closeTime: '22:00' };
+            });
+            setOperatingHours(mappedHours);
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi lấy dữ liệu mặt bằng:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSpace();
+  }, [id, token, isEditing]);
 
   const handleProvinceSelect = async (item: { value: string; label: string }) => {
     setProvinceCode(item.value);
@@ -181,22 +235,6 @@ export default function CreateSpaceScreen() {
     );
   };
 
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setSelectedImages((prev) => [...prev, ...result.assets]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const toggleDay = (dayOfWeek: number) => {
     setOperatingHours(prev =>
       prev.map(item =>
@@ -213,9 +251,7 @@ export default function CreateSpaceScreen() {
   const tryGeocode = async (query: string): Promise<{ lat: number; lng: number } | null> => {
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=1&countrycodes=vn&email=contact@yourdomain.com`;
-      const geoRes = await fetch(url, {
-        headers: { 'Accept-Language': 'vi' }
-      });
+      const geoRes = await fetch(url, { headers: { 'Accept-Language': 'vi' } });
       if (geoRes.ok) {
         const geoData = await geoRes.json();
         if (Array.isArray(geoData) && geoData.length > 0) {
@@ -234,7 +270,7 @@ export default function CreateSpaceScreen() {
       return Alert.alert('Lỗi', 'Vui lòng điền đủ tên, địa chỉ và diện tích!');
     }
 
-    if (!provinceCode) {
+    if (!isEditing && !provinceCode) {
       return Alert.alert('Lỗi', 'Vui lòng chọn Tỉnh/Thành phố!');
     }
 
@@ -265,16 +301,13 @@ export default function CreateSpaceScreen() {
       }
     }
 
-    if (!found) {
-      console.warn("Không xác định được toạ độ chính xác cho địa chỉ này (lưu tạm 0,0).");
-    }
-
-    const city = [wardLabel, districtLabel, provinceLabel].filter(Boolean).join(', ');
+    const newCity = [wardLabel, districtLabel, provinceLabel].filter(Boolean).join(', ');
+    const finalCity = (isEditing && !wardLabel && !districtLabel) ? originalCity : newCity;
 
     const payload = {
       name: name.trim(),
       address: address.trim(),
-      city,
+      city: finalCity,
       area: Number(area) || 0,
       isActive: true,
       latitude: lat,
@@ -298,68 +331,27 @@ export default function CreateSpaceScreen() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/Space/Create`, {
-        method: 'POST',
+      const url = isEditing 
+        ? `${API_BASE}/api/Space/Update${id}`
+        : `${API_BASE}/api/Space/Create`;
+        
+      const res = await fetch(url, {
+        method: isEditing ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
           accept: '*/*',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(isEditing ? { ...payload, id } : payload),
       });
 
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
-        console.error('Space/Create error:', res.status, errBody);
-        throw new Error('Không thể tạo mặt bằng. Kiểm tra lại thông tin!');
+        console.error('Space Error:', res.status, errBody);
+        throw new Error(`Không thể ${isEditing ? 'cập nhật' : 'tạo'} mặt bằng. Kiểm tra lại thông tin!`);
       }
 
-      const resText = await res.text();
-      let createdSpaceId;
-      try {
-        const resData = JSON.parse(resText);
-        createdSpaceId = resData.id || resData.data?.id || resData;
-      } catch {
-        createdSpaceId = resText;
-      }
-
-      if (selectedImages.length > 0 && createdSpaceId) {
-        const formData = new FormData();
-        for (let i = 0; i < selectedImages.length; i++) {
-          const img = selectedImages[i];
-          if (Platform.OS === 'web') {
-            const fetchRes = await fetch(img.uri);
-            const blob = await fetchRes.blob();
-            formData.append('file', blob, img.fileName || `image_${i}.jpg`);
-          } else {
-            const filename = img.fileName || img.uri.split('/').pop() || `image_${i}.jpg`;
-            const type = img.mimeType || 'image/jpeg';
-            formData.append('file', {
-              uri: img.uri,
-              name: filename,
-              type,
-            } as any);
-          }
-        }
-        formData.append('spaceId', createdSpaceId.toString());
-
-        const picRes = await fetch(`${API_BASE}/api/Picture`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            accept: '*/*',
-          },
-          body: formData,
-        });
-
-        if (!picRes.ok) {
-          console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
-          Alert.alert('Cảnh báo', 'Tạo mặt bằng thành công nhưng tải ảnh lên thất bại!');
-          return router.back();
-        }
-      }
-
-      Alert.alert('Thành công', 'Đã tạo mặt bằng thành công!', [
+      Alert.alert('Thành công', `Đã ${isEditing ? 'cập nhật' : 'tạo'} mặt bằng thành công!`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {
@@ -404,6 +396,14 @@ export default function CreateSpaceScreen() {
     </Modal>
   );
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#00A67E" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -412,7 +412,7 @@ export default function CreateSpaceScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Đăng ký mặt bằng</Text>
+        <Text style={styles.headerTitle}>{isEditing ? 'Sửa mặt bằng' : 'Đăng ký mặt bằng'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -452,9 +452,9 @@ export default function CreateSpaceScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Quận/Huyện *</Text>
           <TouchableOpacity
-            style={[styles.pickerBtn, !provinceCode && styles.pickerDisabled]}
-            onPress={() => provinceCode && setShowDistrictPicker(true)}
-            disabled={!provinceCode}
+            style={[styles.pickerBtn, !provinceCode && !isEditing && styles.pickerDisabled]}
+            onPress={() => (provinceCode || isEditing) && setShowDistrictPicker(true)}
+            disabled={!provinceCode && !isEditing}
           >
             <Text style={districtLabel ? styles.pickerText : styles.pickerPlaceholder}>
               {districtLabel || '-- Chọn Quận/Huyện --'}
@@ -467,9 +467,9 @@ export default function CreateSpaceScreen() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Phường/Xã *</Text>
           <TouchableOpacity
-            style={[styles.pickerBtn, !districtCode && styles.pickerDisabled]}
-            onPress={() => districtCode && setShowWardPicker(true)}
-            disabled={!districtCode}
+            style={[styles.pickerBtn, !districtCode && !isEditing && styles.pickerDisabled]}
+            onPress={() => (districtCode || isEditing) && setShowWardPicker(true)}
+            disabled={!districtCode && !isEditing}
           >
             <Text style={wardLabel ? styles.pickerText : styles.pickerPlaceholder}>
               {wardLabel || '-- Chọn Phường/Xã --'}
@@ -595,26 +595,6 @@ export default function CreateSpaceScreen() {
           );
         })}
 
-        {/* Hình ảnh */}
-        <Text style={styles.sectionTitle}>Hình ảnh mặt bằng (Tùy chọn)</Text>
-        <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
-          <Feather name="image" size={20} color="#00A67E" />
-          <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
-        </TouchableOpacity>
-
-        {selectedImages.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
-            {selectedImages.map((img, idx) => (
-              <View key={idx} style={styles.imagePreviewWrapper}>
-                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
-                <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
-                  <Feather name="x" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-
         {/* SUBMIT */}
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
@@ -624,7 +604,7 @@ export default function CreateSpaceScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitBtnText}>Lưu mặt bằng</Text>
+            <Text style={styles.submitBtnText}>{isEditing ? 'Lưu thay đổi' : 'Lưu mặt bằng'}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -707,21 +687,6 @@ const styles = StyleSheet.create({
     fontSize: 14, color: '#111827', width: 65, textAlign: 'center',
   },
   timeSep: { color: '#94A3B8', fontSize: 16 },
-
-  pickImageBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
-    borderStyle: 'dashed', borderRadius: 8, padding: 16, marginBottom: 12, gap: 8
-  },
-  pickImageText: { color: '#00A67E', fontWeight: '500' },
-  imagePreviewContainer: { flexDirection: 'row', marginBottom: 16 },
-  imagePreviewWrapper: { marginRight: 12, position: 'relative' },
-  imagePreview: { width: 80, height: 80, borderRadius: 8 },
-  removeImageBtn: {
-    position: 'absolute', top: -6, right: -6, backgroundColor: 'red',
-    borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#fff'
-  },
 
   submitBtn: {
     backgroundColor: '#00A67E', paddingVertical: 14, borderRadius: 10,

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { useRouter, Stack, useFocusEffect } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
-export default function MySpacesScreen() {
+export default function SpacePartsScreen() {
   const router = useRouter();
+  const { parentSpaceId, parentSpaceName } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const [spaces, setSpaces] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,24 +28,24 @@ export default function MySpacesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (token && currentUserId) {
+      if (token && currentUserId && parentSpaceId) {
         fetchSpaces();
       }
-    }, [token, currentUserId])
+    }, [token, currentUserId, parentSpaceId])
   );
 
   const fetchSpaces = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/Space/GetAll?OwnerId=${currentUserId}`, {
+      const res = await fetch(`${API_BASE}/api/SpacePart/GetByParent/${parentSpaceId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setSpaces(Array.isArray(data) ? data : (data?.data || data?.items || []));
+        setSpaces(Array.isArray(data) ? data : (data?.items || []));
       }
     } catch (error) {
-      console.error("Lỗi tải danh sách mặt bằng:", error);
+      console.error("Lỗi tải danh sách không gian con:", error);
     } finally {
       setIsLoading(false);
     }
@@ -59,15 +60,15 @@ export default function MySpacesScreen() {
         onPress: async () => {
           try {
             const targetId = item.id || item.Id;
-            const res = await fetch(`${API_BASE}/api/Space/Delete${targetId}`, {
+            const res = await fetch(`${API_BASE}/api/SpacePart/${targetId}`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
               setSpaces(prev => prev.filter(s => (s.id || s.Id) !== targetId));
-              Alert.alert('Thành công', 'Đã xóa mặt bằng.');
+              Alert.alert('Thành công', 'Đã xóa không gian chia nhỏ.');
             } else {
-              Alert.alert('Lỗi', 'Không thể xóa mặt bằng.');
+              Alert.alert('Lỗi', 'Không thể xóa không gian chia nhỏ.');
             }
           } catch (error) {
             console.error('Delete Space error', error);
@@ -114,11 +115,8 @@ export default function MySpacesScreen() {
 
             <View style={styles.actionsRow}>
               <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: '#F3F4F6' }]}
-                onPress={() => router.push({
-                  pathname: '/listing/create-space',
-                  params: { id: item.id || item.Id }
-                })}
+                style={[styles.actionBtn, { backgroundColor: '#F3F4F6' }]} // We don't have Edit yet
+                onPress={() => Alert.alert('Thông báo', 'Tính năng sửa mặt bằng đang được cập nhật')}
               >
                 <Feather name="edit" size={16} color="#4B5563" />
                 <Text style={{ color: '#4B5563', fontWeight: '500', marginLeft: 4 }}>Sửa</Text>
@@ -131,17 +129,6 @@ export default function MySpacesScreen() {
                 <Text style={{ color: '#DC2626', fontWeight: '500', marginLeft: 4 }}>Xóa</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: '#E0F2FE', marginTop: 12, width: '100%' }]}
-              onPress={() => router.push({
-                pathname: '/listing/space-parts',
-                params: { parentSpaceId: item.id || item.Id, parentSpaceName: item.name }
-              })}
-            >
-              <Feather name="grid" size={16} color="#0369A1" />
-              <Text style={{ color: '#0369A1', fontWeight: 'bold', marginLeft: 6 }}>Quản lý không gian chia nhỏ</Text>
-            </TouchableOpacity>
           </View>
         )}
       </TouchableOpacity>
@@ -156,8 +143,10 @@ export default function MySpacesScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mặt bằng của tôi</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/listing/create-space')}>
+        <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+          Không gian nhỏ của {parentSpaceName || 'Mặt bằng'}
+        </Text>
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push({ pathname: '/listing/create-space-part', params: { parentSpaceId } })}>
           <Feather name="plus" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -169,9 +158,9 @@ export default function MySpacesScreen() {
       ) : spaces.length === 0 ? (
         <View style={styles.center}>
           <Feather name="layout" size={48} color="#D1D5DB" />
-          <Text style={styles.emptyText}>Bạn chưa có mặt bằng nào</Text>
-          <TouchableOpacity style={styles.createBtn} onPress={() => router.push('/listing/create-space')}>
-            <Text style={styles.createBtnText}>Tạo mặt bằng mới</Text>
+          <Text style={styles.emptyText}>Chưa có không gian chia nhỏ nào</Text>
+          <TouchableOpacity style={styles.createBtn} onPress={() => router.push({ pathname: '/listing/create-space-part', params: { parentSpaceId } })}>
+            <Text style={styles.createBtnText}>Tạo không gian con</Text>
           </TouchableOpacity>
         </View>
       ) : (
