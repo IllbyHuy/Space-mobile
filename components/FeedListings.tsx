@@ -13,7 +13,7 @@ const getPicUrl = (pic: any) => {
 };
 
 // Nhận thêm headerPadding để căn lề trên
-export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '' }: { onScroll?: any, headerPadding?: number, searchQuery?: string }) => {
+export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '', showFavoritesOnly = false }: { onScroll?: any, headerPadding?: number, searchQuery?: string, showFavoritesOnly?: boolean }) => {
   const [listings, setListings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
@@ -182,13 +182,19 @@ export const FeedListings = ({ onScroll, headerPadding = 0, searchQuery = '' }: 
 
   if (isLoading) return <ActivityIndicator size="large" color="#00A67E" style={{ marginTop: headerPadding + 40 }} />;
 
+  let filteredListings = listings;
+
+  if (showFavoritesOnly) {
+    filteredListings = filteredListings.filter((item) => favoriteIds.has((item.id || item.Id)?.toString()));
+  }
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredListings = normalizedQuery
-    ? listings.filter((item) =>
-        (item.name || '').toLowerCase().includes(normalizedQuery) ||
-        (item.address || '').toLowerCase().includes(normalizedQuery)
-      )
-    : listings;
+  if (normalizedQuery) {
+    filteredListings = filteredListings.filter((item) =>
+      (item.name || '').toLowerCase().includes(normalizedQuery) ||
+      (item.address || '').toLowerCase().includes(normalizedQuery)
+    );
+  }
 
   return (
     <Animated.FlatList

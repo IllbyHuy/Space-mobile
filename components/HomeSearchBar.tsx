@@ -8,10 +8,11 @@ type HomeSearchBarProps = {
   onPressMap?: () => void; 
   onPressNotification?: () => void; 
   onPressFilter?: () => void; // Thêm lại prop cho Filter
+  isFilterActive?: boolean;
   notificationCount?: number; 
 };
 
-export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotification, onPressFilter, notificationCount = 0 }: HomeSearchBarProps) => {
+export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotification, onPressFilter, isFilterActive, notificationCount = 0 }: HomeSearchBarProps) => {
   return (
     <View style={styles.container}>
       {/* Khung Search */}
@@ -50,7 +51,7 @@ export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotific
 
       {/* Nút Lọc (Filter) đã quay trở lại */}
       <TouchableOpacity
-        style={styles.iconBtn}
+        style={[styles.iconBtn, isFilterActive && { backgroundColor: '#00A67E' }]}
         onPress={onPressFilter || (() => Alert.alert('Sắp ra mắt', 'Bộ lọc theo Giá, Diện tích, Khu vực... đang được phát triển.'))}
       >
         <Feather name="sliders" size={18} color="#fff" />

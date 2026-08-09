@@ -13,6 +13,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [searchQuery, setSearchQuery] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const { unreadCount, setUnreadCount } = useNotificationContext();
 
   React.useEffect(() => {
@@ -70,6 +71,7 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         headerPadding={headerHeight + insets.top}
         searchQuery={searchQuery}
+        showFavoritesOnly={showFavoritesOnly}
       />
 
       {/* 2. HEADER NỔI ĐÈ LÊN TRÊN FEED */}
@@ -87,6 +89,8 @@ export default function HomeScreen() {
           value={searchQuery}
           onChangeValue={setSearchQuery}
           onPressMap={() => router.push("/map")}
+          onPressFilter={() => setShowFavoritesOnly(!showFavoritesOnly)}
+          isFilterActive={showFavoritesOnly}
           notificationCount={unreadCount} 
           onPressNotification={() => {
             setUnreadCount(0); // Optional: reset count immediately or let the notifications screen handle it
