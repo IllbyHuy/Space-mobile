@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-  Animated, Dimensions, LayoutAnimation, UIManager,
+  Animated, LayoutAnimation, UIManager,
   ScrollView
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
@@ -10,8 +10,6 @@ import { Feather } from '@expo/vector-icons';
 import { useFonts, PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { forceRegisterAndSavePushToken } from '@/hooks/usePushNotifications';
-
-const { height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -126,12 +124,13 @@ export default function AuthScreen() {
 
       const rawText = await response.text();
       let data: any = {};
-      try { data = rawText ? JSON.parse(rawText) : {}; } catch {}
+      let isJson = true;
+      try { data = rawText ? JSON.parse(rawText) : {}; } catch { isJson = false; }
 
       // LOGIC "BÓC TÁCH" LỖI TỪ BACKEND (.NET VALIDATION)
       if (!response.ok) {
         let errorString = data.message || '';
-        
+
         // Nếu Backend trả về cục 'errors' (như lỗi trùng email, mk yếu...)
         if (data.errors && typeof data.errors === 'object') {
           const errorMessages = [];
@@ -144,10 +143,13 @@ export default function AuthScreen() {
             errorString = errorMessages.join('\n'); // Gộp các lỗi lại xuống dòng
           }
         }
-        
+
+        // Backend trả về plain text (không phải JSON chuẩn) -> dùng luôn text đó
+        if (!errorString && !isJson && rawText) errorString = rawText;
+
         // Nếu vẫn không moi được lỗi nào, dùng title mặc định của nó
         if (!errorString) errorString = data.title || 'Có lỗi xảy ra, vui lòng thử lại.';
-        
+
         throw new Error(errorString);
       }
 
@@ -181,11 +183,6 @@ export default function AuthScreen() {
     }
   };
 
-  const logoTranslateY = startupAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -height * 0.22], 
-  });
-
   const formOpacity = startupAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 1], 
@@ -205,12 +202,12 @@ export default function AuthScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={{ flex: 1, justifyContent: 'center' }}>
 
-          <Animated.View style={[styles.headerContainer, { transform: [{ translateY: logoTranslateY }] }]}>
+          <View style={styles.headerContainer}>
             <Text style={styles.logoText}>Ether<Text style={styles.logoAccent}>Space</Text></Text>
             <Animated.Text style={[styles.slogan, { opacity: formOpacity }]}>
               {showOtpForm ? 'Xác thực tài khoản của bạn' : (isLoginMode ? 'Nền tảng cho thuê không gian linh hoạt' : 'Gia nhập cộng đồng ngay hôm nay')}
             </Animated.Text>
-          </Animated.View>
+          </View>
 
           <Animated.View style={[styles.formContainer, { opacity: formOpacity }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -314,11 +311,11 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D1117' },
-  headerContainer: { alignItems: 'center', marginBottom: 30, position: 'absolute', width: '100%' },
+  headerContainer: { alignItems: 'center', marginBottom: 20, width: '100%' },
   logoText: { fontSize: 24, fontFamily: 'PressStart2P_400Regular', color: '#fff' },
   logoAccent: { color: '#00D4A0', fontFamily: 'PressStart2P_400Regular', fontSize: 24 },
   slogan: { color: '#8b949e', fontSize: 13, marginTop: 12, textAlign: 'center' },
-  formContainer: { flexGrow: 0, paddingHorizontal: 24, marginTop: height * 0.15 },
+  formContainer: { flexShrink: 1, paddingHorizontal: 24 },
   inputWrapper: { position: 'relative', justifyContent: 'center', marginBottom: 16 },
   inputIcon: { position: 'absolute', left: 16, zIndex: 1 },
   input: {

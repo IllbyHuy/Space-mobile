@@ -220,10 +220,13 @@ export default function IdentityVerificationScreen() {
                         <CameraView
                           style={StyleSheet.absoluteFillObject}
                           facing="back"
+                          autofocus="on"
+                          zoom={0.15}
                           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                           onBarcodeScanned={isCameraActive ? handleBarcodeScanned : undefined}
                         />
                         <View style={styles.scanFrame} pointerEvents="none" />
+                        <Text style={styles.scanHint}>Đưa mã QR vào khung, giữ camera cách 10-15cm và đủ sáng</Text>
                       </View>
                     )}
                   </View>
@@ -301,10 +304,15 @@ const styles = StyleSheet.create({
   sourceBtnText: { fontSize: 13, fontWeight: 'bold', color: '#6B7280' },
   sourceBtnTextActive: { color: '#fff' },
   cameraWrap: { marginBottom: 16 },
-  cameraBox: { height: 320, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000' },
+  cameraBox: { height: 360, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000' },
   scanFrame: {
-    position: 'absolute', top: '22%', left: '22%', right: '22%', bottom: '22%',
+    position: 'absolute', top: '20%', left: '25%', right: '25%', bottom: '30%',
     borderWidth: 2, borderColor: '#00D4A0', borderRadius: 12
+  },
+  scanHint: {
+    position: 'absolute', bottom: 16, left: 16, right: 16,
+    color: '#fff', fontSize: 12, textAlign: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8
   },
   permissionBox: {
     height: 220, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB',

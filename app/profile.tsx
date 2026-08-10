@@ -134,7 +134,6 @@ export default function ProfileScreen() {
               <MenuItem icon="shield" title="Xác thực định danh" onPress={() => router.push('/identity-verification')} />
               <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => router.push('/user-profile')} />
               <MenuItem icon="file-text" title="Hợp đồng của tôi" onPress={() => router.push('/my-contracts')} />
-              <MenuItem icon="calendar" title="Quản lý lịch hẹn" onPress={() => notifyComingSoon('Quản lý lịch hẹn')} />
               <MenuItem icon="credit-card" title="Ví & Thanh toán" onPress={() => router.push('/wallet')} />
             </View>
 
