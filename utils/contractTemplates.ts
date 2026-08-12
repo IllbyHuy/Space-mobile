@@ -144,6 +144,8 @@ export interface ContractMergeData {
   NGAY_THANH_TOAN_TU?: string;   // vd "mùng 1"
   NGAY_THANH_TOAN_DEN?: string;  // vd "mùng 5"
 
+  QUYEN_CHO_THUE_LAI?: string;   // Quyền cho thuê lại mặt bằng
+
   // Thời hạn
   THOI_HAN_THUE?: string;        // vd "12 tháng" / "1 năm"
   NGAY_BAT_DAU?: string;
@@ -190,6 +192,7 @@ const FIELD_LABELS: Record<string, string> = {
   TIEN_COC: 'Tiền cọc',
   NGAY_THANH_TOAN_TU: 'Ngày thanh toán từ',
   NGAY_THANH_TOAN_DEN: 'Ngày thanh toán đến',
+  QUYEN_CHO_THUE_LAI: 'Quyền cho thuê lại mặt bằng',
   THOI_HAN_THUE: 'Thời hạn thuê',
   NGAY_BAT_DAU: 'Ngày bắt đầu',
   NGAY_KET_THUC: 'Ngày kết thúc',
@@ -304,6 +307,7 @@ Thời điểm ký kết hợp đồng này thì bên cho thuê không được 
 - Bên B chỉ được sử dụng phần diện tích mặt bằng thuê vào việc kinh doanh mà bên B đã đăng ký.
 - Bên B được phép trang trí, sửa chữa phần nội thất bên trong, ngoại thất bên ngoài mặt bằng để phù hợp với ngành nghề kinh doanh của bên B.
 - Bên B được trang trí và treo bảng hiệu ở mặt tiền để phục vụ cho việc quảng bá và giới thiệu công việc kinh doanh của bên B, đảm bảo tuân thủ quy định về quảng cáo ngoài trời hiện hành.
+- {{QUYEN_CHO_THUE_LAI}}
 - Bên B được phép hoạt động kinh doanh theo lịch sau: {{LICH_HOAT_DONG}}, trừ trường hợp pháp luật địa phương có quy định hạn chế khác.
 - Bên B có thể tiến hành khảo sát, thiết kế mặt bằng ngay trong tháng ...., thời hạn giao mặt bằng trễ nhất là ................. . Thời điểm bắt đầu tính phí thuê mặt bằng là ngày {{NGAY_BAT_DAU}}.
 Để sửa chữa và dỡ bỏ các hạng mục này Bên B đồng ý thanh toán cho bên A số tiền là ..................... đồng. Số tiền này được thanh toán ngay khi chấm dứt hợp đồng này.
@@ -402,7 +406,7 @@ Lịch hoạt động: {{LICH_HOAT_DONG}}.
 4.2.2 - Thanh toán tiền thuê mặt bằng đúng thời hạn.
 4.2.3 - Chịu trách nhiệm về mọi hoạt động sản xuất kinh doanh của mình theo đúng pháp luật hiện hành.
 4.2.4 - Chấp hành các quy định về giữ gìn vệ sinh môi trường và trật tự an ninh chung trong khu vực kinh doanh.
-4.2.5 - Được phép chuyển nhượng hợp đồng thuê mặt bằng hoặc cho người khác thuê lại sau khi thoả thuận và được sự đồng ý bằng văn bản của bên A.
+4.2.5 - {{QUYEN_CHO_THUE_LAI}}
 4.2.6 - Thanh toán các khoản chi phí phát sinh trong kinh doanh (ngoài tiền thuê nhà ghi ở ĐIỀU 3) như tiền điện, nước, điện thoại, thuế kinh doanh... đầy đủ và đúng thời hạn.
 4.2.7 - Trước khi chấm dứt hợp đồng thuê mặt bằng, bên B phải thanh toán hết tiền điện, nước, điện thoại, thuế kinh doanh... và giao lại mặt bằng cho bên A.
 4.2.8 - Khi hai bên chấm dứt hợp đồng thuê mặt bằng thì bên B phải trả lại mặt bằng đã thuê theo đúng hiện trạng ban đầu, không được đập phá hay tháo dỡ bất cứ vật dụng nào mà bên A cho mượn.
@@ -469,6 +473,7 @@ Với diện tích là: {{DIEN_TICH}}.
 4.2 - Trách nhiệm của bên B:
 - Bên B sẽ sử dụng mặt bằng đúng mục đích kinh doanh, khi có nhu cầu sửa chữa cải tạo thì phải được bên A đồng ý bằng văn bản và tuân thủ các quy định về xây dựng hiện hành. Mọi chi phí sửa chữa do bên B tự chi trả.
 - Thanh toán tiền thuê mặt bằng đúng hạn theo Điều 3.
+- {{QUYEN_CHO_THUE_LAI}}
 - Chịu trách nhiệm về hoạt động kinh doanh của mình theo đúng pháp luật hiện hành.
 - Giữ gìn vệ sinh môi trường và trật tự an ninh chung trong khu vực kinh doanh.
 - Trước khi chấm dứt hợp đồng thuê mặt bằng, bên B phải thanh toán hết tiền điện, nước và giao lại mặt bằng cho bên A.

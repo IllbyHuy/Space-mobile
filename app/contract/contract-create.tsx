@@ -32,6 +32,15 @@ const DURATION_UNITS = [
   { value: 'Years', label: 'Năm' },
 ];
 
+const CustomCheckbox = ({ value, onValueChange, label }: any) => (
+  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 8 }} onPress={() => onValueChange(!value)}>
+    <View style={{ width: 20, height: 20, borderWidth: 1, borderColor: '#00A67E', borderRadius: 4, marginRight: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: value ? '#00A67E' : 'transparent' }}>
+      {value && <Feather name="check" size={14} color="#fff" />}
+    </View>
+    {label && <Text style={{ color: '#374151', flex: 1 }}>{label}</Text>}
+  </TouchableOpacity>
+);
+
 export default function ContractCreateScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -79,6 +88,9 @@ export default function ContractCreateScreen() {
   const [showDayPicker, setShowDayPicker] = useState(false);
   
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
+  const [canShowShareCheckbox, setCanShowShareCheckbox] = useState(false);
+  const [canShareSpace, setCanShareSpace] = useState(false);
 
   const [lessorProfile, setLessorProfile] = useState<UserProfile | null>(null);
   const [lesseeProfile, setLesseeProfile] = useState<UserProfile | null>(null);
@@ -141,9 +153,11 @@ export default function ContractCreateScreen() {
         businessPurpose: existingContract.businessPurpose || '',
         contractSchedules: existingContract.contractSchedules || [],
       });
+      setCanShareSpace(existingContract.canShare || false);
     } else {
       setSelectedTemplateId('');
       lastRenderedRef.current = {};
+      setCanShareSpace(false);
     }
   }, [existingContract]);
 
@@ -182,6 +196,9 @@ export default function ContractCreateScreen() {
       BEN_B_HO_TEN: lesseeProfile?.fullName,
       BEN_B_CCCD: lesseeProfile?.citizenIDNumber,
       BEN_B_CCCD_NGAY_CAP: lesseeProfile?.dateOfIssue ? new Date(lesseeProfile.dateOfIssue).toLocaleDateString('vi-VN') : '',
+      QUYEN_CHO_THUE_LAI: canShareSpace 
+        ? 'Bên B ĐƯỢC PHÉP cho bên thứ ba thuê lại mặt bằng này trong thời hạn hợp đồng.'
+        : 'Bên B KHÔNG ĐƯỢC PHÉP cho bên thứ ba thuê lại mặt bằng này dưới mọi hình thức, trừ khi có sự đồng ý bằng văn bản của Bên A.',
     };
 
     let newDesc = contractData.description || '';
@@ -221,8 +238,44 @@ export default function ContractCreateScreen() {
     contractData.startDate, 
     mySpaces, 
     lessorProfile, 
-    lesseeProfile
+    lesseeProfile,
+    canShareSpace
   ]);
+
+  useEffect(() => {
+    const checkSpaceRight = async () => {
+      if (!contractData.spaceId || !token) {
+        setCanShowShareCheckbox(false);
+        if (!existingContract) setCanShareSpace(false);
+        return;
+      }
+      
+      const selectedSpace = mySpaces.find(s => String(s.id || s.Id) === String(contractData.spaceId));
+      let isOwner = false;
+      if (selectedSpace) {
+        isOwner = String(selectedSpace.ownerId || selectedSpace.OwnerId || selectedSpace.userId) === String(currentUserId);
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/SpaceUsageRight/Mine?spaceId=${contractData.spaceId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // We fetch rights, but chain-subleasing is restricted.
+          // F1 cannot grant F2 the share permission. Only F0 (Owner) can grant it.
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCanShowShareCheckbox(isOwner);
+        if (!isOwner) {
+          setCanShareSpace(false);
+        }
+      }
+    };
+    checkSpaceRight();
+  }, [contractData.spaceId, token, mySpaces, currentUserId, existingContract]);
 
   const fetchMySpaces = async () => {
     try {
@@ -314,6 +367,8 @@ export default function ContractCreateScreen() {
       description: contractData.description,
       businessPurpose: contractData.businessPurpose,
       contractSchedules: contractData.contractSchedules,
+      canShare: canShareSpace,
+      canGrantSharePermission: canShareSpace,
     };
 
     try {
@@ -585,6 +640,16 @@ export default function ContractCreateScreen() {
             onChangeText={val => setContractData({ ...contractData, description: val })}
           />
         </View>
+
+        {canShowShareCheckbox && (
+          <View style={styles.inputGroup}>
+            <CustomCheckbox
+              label="Cho phép bên thứ hai được tạo hợp đồng (cho thuê lại) dựa vào mặt bằng này."
+              value={canShareSpace}
+              onValueChange={setCanShareSpace}
+            />
+          </View>
+        )}
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
           <TouchableOpacity 

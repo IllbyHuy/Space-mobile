@@ -249,16 +249,58 @@ export default function EditListingScreen() {
       if (!token || !currentUserId || !id) return;
       try {
         setIsLoadingData(true);
-        const spaceRes = await fetch(`${API_BASE}/api/Space/GetAll`, {
+        const spaceRes = await fetch(`${API_BASE}/api/Space/GetAll?OwnerId=${encodeURIComponent(currentUserId)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (spaceRes.ok) {
           const data = await spaceRes.json();
           const allSpaces = Array.isArray(data) ? data : (data?.data || data?.items || []);
-          const mine = allSpaces.filter((s: any) => 
-            String(s.ownerId || s.creatorId || s.createdBy) === String(currentUserId)
-          );
-          setMySpaces(mine);
+          let allSpacesAndParts: any[] = [];
+          
+          for (const space of allSpaces) {
+            allSpacesAndParts.push({ ...space, isPart: false });
+            try {
+              const partRes = await fetch(`${API_BASE}/api/SpacePart/GetByParent/${space.id || space.Id}`, {
+                headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
+              });
+              if (partRes.ok) {
+                const partData = await partRes.json();
+                const parts = Array.isArray(partData) ? partData : (partData?.items || []);
+                parts.forEach((p: any) => {
+                  allSpacesAndParts.push({ ...p, isPart: true, parentName: space.name });
+                });
+              }
+            } catch (err) {
+              console.error("Lỗi lấy space part", err);
+            }
+          }
+          
+          try {
+            const usageRes = await fetch(`${API_BASE}/api/SpaceUsageRight/Mine`, {
+              headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
+            });
+            if (usageRes.ok) {
+              const usageData = await usageRes.json();
+              const rights = Array.isArray(usageData) ? usageData : usageData?.data || [];
+              const shareableRights = rights.filter((r: any) => r.canShare === true);
+              const spacePromises = shareableRights.map((r: any) =>
+                fetch(`${API_BASE}/api/Space/GetById/${r.spaceId}`, {
+                  headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
+                }).then(res => res.ok ? res.json() : null)
+              );
+              const resolvedSpaces = await Promise.all(spacePromises);
+              const validUsageSpaces = resolvedSpaces.filter(Boolean);
+              for (const space of validUsageSpaces) {
+                if (!allSpacesAndParts.some(s => String(s.id || s.Id) === String(space.id || space.Id))) {
+                  allSpacesAndParts.push({ ...space, isPart: false });
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Lỗi lấy quyền sử dụng mặt bằng", e);
+          }
+
+          setMySpaces(allSpacesAndParts);
         }
 
         const listingRes = await fetch(`${API_BASE}/api/Listing/GetAll`, {
@@ -389,13 +431,29 @@ export default function EditListingScreen() {
       }
       const allowedEnd = new Date(allowedEndTime);
       const allowedStart = new Date(allowedStartTime);
+      allowedEnd.setHours(23, 59, 59, 999);
+      allowedStart.setHours(0, 0, 0, 0);
+
       const badSlot = availabilities.find(slot => {
+        if (!slot.validFrom || !slot.validTo) return false;
         const vFrom = new Date(slot.validFrom);
         const vTo = new Date(slot.validTo);
+        vFrom.setHours(0, 0, 0, 0);
+        vTo.setHours(23, 59, 59, 999);
         return vTo > allowedEnd || vFrom < allowedStart || vFrom > vTo;
       });
       if (badSlot) {
-        return Alert.alert('Lỗi', `Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ!`);
+        return Alert.alert('Lỗi', `Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ! Thời gian phải nằm trong khoảng từ ${allowedStartTime} đến ${allowedEndTime}.`);
+      }
+
+      const badSpecificDate = availabilities.find(slot => {
+        if (!slot.specificdate || slot.specificdate === '0001-01-01') return false;
+        const sDate = new Date(slot.specificdate);
+        sDate.setHours(0, 0, 0, 0);
+        return sDate > allowedEnd || sDate < allowedStart;
+      });
+      if (badSpecificDate) {
+        return Alert.alert('Lỗi', `Ngày cụ thể của khung giờ chia sẻ phải nằm trong khoảng thời gian hiệu lực bài đăng!`);
       }
       const badTimeSlot = availabilities.find(slot => slot.startTime >= slot.endTime);
       if (badTimeSlot) {

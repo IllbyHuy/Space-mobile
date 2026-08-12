@@ -59,14 +59,19 @@ export default function ChatScreen() {
 
   const getOtherPersonName = (room: any) => {
     if (!room) return 'Khách';
-    const nameFromRoom =
-      room.lesseeUserName || room.LesseeUserName ||
+    const rLessorId = room.lessorId || room.LessorId;
+    const rLesseeId = room.lesseeId || room.LesseeId;
+
+    if (String(rLessorId) === String(currentUserId)) {
+      return room.lesseeUserName || room.LesseeUserName || room.lesseeName || room.LesseeName || 'Khách thuê';
+    } else if (String(rLesseeId) === String(currentUserId)) {
+      return room.lessorUserName || room.LessorUserName || room.lessorName || room.LessorName || 'Chủ nhà';
+    }
+
+    return room.lesseeUserName || room.LesseeUserName ||
       room.lessorUserName || room.LessorUserName ||
       room.lesseeName || room.LesseeName ||
-      room.lessorName || room.LessorName;
-    if (nameFromRoom) return nameFromRoom;
-    const rLessorId = room.lessorId || room.LessorId;
-    return String(rLessorId) === String(currentUserId) ? "Khách thuê" : "Chủ nhà";
+      room.lessorName || room.LessorName || 'Khách';
   };
 
   const isLessor = activeChat && (String(activeChat.lessorId) === String(currentUserId) || String(activeChat.LessorId) === String(currentUserId));
