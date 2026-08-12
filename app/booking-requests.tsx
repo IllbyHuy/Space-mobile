@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -51,6 +51,19 @@ export default function BookingRequestsScreen() {
   };
 
   const handleUpdateStatus = (requestId: number, newStatus: 'Approved' | 'Rejected', lesseeId: string) => {
+    if (!requestId) {
+      console.warn("Lỗi: Không tìm thấy ID của yêu cầu (requestId bị undefined)");
+      return;
+    }
+    
+    if (Platform.OS === 'web') {
+      const confirmMsg = `Bạn có chắc muốn ${newStatus === 'Approved' ? 'DUYỆT' : 'TỪ CHỐI'} yêu cầu này?`;
+      if (window.confirm(confirmMsg)) {
+        updateStatusApi(requestId, newStatus, lesseeId);
+      }
+      return;
+    }
+
     Alert.alert(
       'Xác nhận',
       `Bạn có chắc muốn ${newStatus === 'Approved' ? 'DUYỆT' : 'TỪ CHỐI'} yêu cầu này?`,
@@ -89,16 +102,20 @@ export default function BookingRequestsScreen() {
           });
           
           if (convRes.ok) {
-            Alert.alert("Thành công", "Đã duyệt đơn và tạo phòng chat thành công! Khách thuê giờ đã có thể nhắn tin cho bạn.");
+            if (Platform.OS === 'web') window.alert("Đã duyệt đơn và tạo phòng chat thành công! Khách thuê giờ đã có thể nhắn tin cho bạn.");
+            else Alert.alert("Thành công", "Đã duyệt đơn và tạo phòng chat thành công! Khách thuê giờ đã có thể nhắn tin cho bạn.");
           } else {
-            Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
+            if (Platform.OS === 'web') window.alert("Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
+            else Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
           }
         } catch (chatErr) {
           console.error("Lỗi tạo phòng chat:", chatErr);
-          Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
+          if (Platform.OS === 'web') window.alert("Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
+          else Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
         }
       } else {
-        Alert.alert("Thành công", "Đã từ chối yêu cầu thuê!");
+        if (Platform.OS === 'web') window.alert(newStatus === 'Approved' ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!");
+        else Alert.alert("Thành công", newStatus === 'Approved' ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!");
       }
 
       fetchRequests();
@@ -128,7 +145,7 @@ export default function BookingRequestsScreen() {
       <View style={styles.actions}>
         <TouchableOpacity 
           style={[styles.btn, styles.rejectBtn]} 
-          onPress={() => handleUpdateStatus(item.id, 'Rejected', item.lesseeId)}
+          onPress={() => handleUpdateStatus(item.id || item.Id, 'Rejected', item.lesseeId || item.LesseeId)}
         >
           <Feather name="x-circle" size={18} color="#EF4444" />
           <Text style={styles.rejectBtnText}>Từ chối</Text>
@@ -136,7 +153,7 @@ export default function BookingRequestsScreen() {
         
         <TouchableOpacity 
           style={[styles.btn, styles.approveBtn]} 
-          onPress={() => handleUpdateStatus(item.id, 'Approved', item.lesseeId)}
+          onPress={() => handleUpdateStatus(item.id || item.Id, 'Approved', item.lesseeId || item.LesseeId)}
         >
           <Feather name="check-circle" size={18} color="#fff" />
           <Text style={styles.approveBtnText}>Duyệt</Text>

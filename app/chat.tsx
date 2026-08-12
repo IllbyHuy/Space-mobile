@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Alert, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView, Platform, Alert, Keyboard, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { HubConnectionBuilder, LogLevel, HubConnection } from '@microsoft/signalr';
@@ -21,6 +21,7 @@ export default function ChatScreen() {
   const [view, setView] = useState<'LIST' | 'CHAT'>('LIST');
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any | null>(null);
+  const [showContractOptions, setShowContractOptions] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [message, setMessage] = useState('');
 
@@ -62,9 +63,13 @@ export default function ChatScreen() {
     const rLessorId = room.lessorId || room.LessorId;
     const rLesseeId = room.lesseeId || room.LesseeId;
 
-    if (String(rLessorId) === String(currentUserId)) {
+    const currId = String(currentUserId || '').trim().toLowerCase();
+    const lId = String(rLessorId || '').trim().toLowerCase();
+    const lesId = String(rLesseeId || '').trim().toLowerCase();
+
+    if (lId === currId) {
       return room.lesseeUserName || room.LesseeUserName || room.lesseeName || room.LesseeName || 'Khách thuê';
-    } else if (String(rLesseeId) === String(currentUserId)) {
+    } else if (lesId === currId) {
       return room.lessorUserName || room.LessorUserName || room.lessorName || room.LessorName || 'Chủ nhà';
     }
 
@@ -74,7 +79,7 @@ export default function ChatScreen() {
       room.lessorName || room.LessorName || 'Khách';
   };
 
-  const isLessor = activeChat && (String(activeChat.lessorId) === String(currentUserId) || String(activeChat.LessorId) === String(currentUserId));
+  const isLessor = activeChat && (String(activeChat.lessorId || '').trim().toLowerCase() === String(currentUserId || '').trim().toLowerCase() || String(activeChat.LessorId || '').trim().toLowerCase() === String(currentUserId || '').trim().toLowerCase());
 
 
   // HÀM DÙNG CHUNG: fetch lại danh sách phòng chat, cập nhật state,
@@ -320,7 +325,7 @@ export default function ChatScreen() {
             <View style={{ flex: 1 }} />
             {isLessor && (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/contract/contract-create', params: { activeChat: JSON.stringify(activeChat) } })}
+                onPress={() => setShowContractOptions(true)}
                 style={{ padding: 8, backgroundColor: '#00A67E', borderRadius: 8 }}
               >
                 <Feather name="file-text" size={20} color="#fff" />
@@ -367,6 +372,54 @@ export default function ChatScreen() {
               <Feather name="send" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
+
+          <Modal visible={showContractOptions} transparent animationType="slide">
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+              <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Tùy chọn tạo hợp đồng</Text>
+                
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}
+                  onPress={() => {
+                    setShowContractOptions(false);
+                    router.push({ pathname: '/contract/contract-create', params: { activeChat: JSON.stringify(activeChat) } });
+                  }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5f6f1', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Feather name="file-text" size={20} color="#00A67E" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>Tạo hợp đồng trực tuyến</Text>
+                    <Text style={{ fontSize: 13, color: '#6b7280' }}>Điền thông tin và ký điện tử ngay trên app</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16 }}
+                  onPress={() => {
+                    setShowContractOptions(false);
+                    router.push({ pathname: '/contract/external-contract-create', params: { activeChat: JSON.stringify(activeChat) } });
+                  }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Feather name="upload" size={20} color="#4b5563" />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>Tải ảnh hợp đồng giấy</Text>
+                    <Text style={{ fontSize: 13, color: '#6b7280' }}>Dành cho hợp đồng đã ký bên ngoài</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={{ marginTop: 20, padding: 14, backgroundColor: '#f3f4f6', borderRadius: 8, alignItems: 'center' }}
+                  onPress={() => setShowContractOptions(false)}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#374151' }}>Hủy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
         </KeyboardAvoidingView>
       )}
     </View>

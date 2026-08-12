@@ -12,8 +12,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
-const getSafeDateOnly = () => {
-  return new Date().toISOString().slice(0, 10);
+const getSafeDateOnly = (dateString?: any) => {
+  try {
+    if (!dateString) return new Date().toISOString().slice(0, 10);
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
 };
 
 const getNextMonthDate = () => {
@@ -43,18 +50,19 @@ const getNextMonthDate = () => {
 function WebDateInput({
   value,
   min,
+  disabled,
   onChange,
 }: {
   value: string;
   min?: string;
+  disabled?: boolean;
   onChange: (val: string) => void;
 }) {
-  // Dùng React.createElement để render thẻ <input> HTML thật trên web.
-  // Style dùng object DOM style bình thường (camelCase), không phải RN style.
   return React.createElement('input', {
     type: 'date',
     value: value || '',
     min: min || undefined,
+    disabled: disabled,
     onChange: (e: any) => onChange(e.target.value),
     style: {
       padding: '10px 12px',
@@ -63,10 +71,10 @@ function WebDateInput({
       width: '100%',
       fontSize: 15,
       boxSizing: 'border-box',
-      backgroundColor: '#fff',
-      color: '#111827',
-      cursor: 'pointer',
-      pointerEvents: 'auto',
+      backgroundColor: disabled ? '#F3F4F6' : '#fff',
+      color: disabled ? '#9CA3AF' : '#111827',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      pointerEvents: disabled ? 'none' : 'auto',
       position: 'relative',
       zIndex: 1,
       colorScheme: 'light',
@@ -125,23 +133,23 @@ function DateField({
   label,
   value,
   minDate,
+  disabled,
   onChange,
 }: {
   label: string;
   value: string;
   minDate?: string;
+  disabled?: boolean;
   onChange: (val: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
-  // State tạm để user vặn spinner (iOS) nhưng chưa commit ra ngoài cho tới
-  // khi bấm "Xong". Bấm "Hủy" thì giá trị cũ của form không đổi.
   const [tempDate, setTempDate] = useState(new Date(value || Date.now()));
 
   if (Platform.OS === 'web') {
     return (
       <View style={[styles.inputGroup, { flex: 1 }]}>
         <Text style={styles.label}>{label}</Text>
-        <WebDateInput value={value} min={minDate} onChange={onChange} />
+        <WebDateInput value={value} min={minDate} disabled={disabled} onChange={onChange} />
       </View>
     );
   }
@@ -151,13 +159,14 @@ function DateField({
       <Text style={styles.label}>{label}</Text>
 
       <TouchableOpacity
-        style={[styles.input, { justifyContent: 'center' }]}
+        style={[styles.input, { justifyContent: 'center', backgroundColor: disabled ? '#F3F4F6' : '#fff' }]}
+        disabled={disabled}
         onPress={() => {
           setTempDate(new Date(value || Date.now()));
           setShowPicker(true);
         }}
       >
-        <Text style={{ color: value ? '#111827' : '#9CA3AF' }}>
+        <Text style={{ color: value && !disabled ? '#111827' : '#9CA3AF' }}>
           {value || 'Chọn ngày'}
         </Text>
       </TouchableOpacity>
@@ -230,6 +239,7 @@ export default function CreateListingScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [mySpaces, setMySpaces] = useState<any[]>([]);
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
   const [showSpacePicker, setShowSpacePicker] = useState(false);
 
   // Form data — matches web ListingForm.tsx
@@ -258,6 +268,36 @@ export default function CreateListingScreen() {
 
   const [allowedStartTime, setAllowedStartTime] = useState(getSafeDateOnly());
   const [allowedEndTime, setAllowedEndTime] = useState(getNextMonthDate());
+  const [timePolicy, setTimePolicy] = useState<any>(null);
+
+  useEffect(() => {
+    if (!spaceId) {
+      setTimePolicy(null);
+      return;
+    }
+    const fetchTimePolicy = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/Listing/ShareListing/TimePolicy/${spaceId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTimePolicy(data);
+          if (data && data.allowedStartTime) {
+            setAllowedStartTime(getSafeDateOnly(data.allowedStartTime));
+          }
+          if (data && data.allowedEndTime) {
+            setAllowedEndTime(getSafeDateOnly(data.allowedEndTime));
+          }
+        } else {
+          setTimePolicy(null);
+        }
+      } catch (err) {
+        setTimePolicy(null);
+      }
+    };
+    if (token) fetchTimePolicy();
+  }, [spaceId, token]);
 
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
@@ -278,17 +318,23 @@ export default function CreateListingScreen() {
       try {
         const prioRes = await fetch(`${API_BASE}/api/PriorityLevel/GetAll`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
         if (prioRes.ok) {
-          const prioData = await prioRes.json();
-          const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
-          const activePrio = pList.filter((p: any) => p.isActive);
-          setPriorityLevels(activePrio);
-          if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
+          try {
+            const text = await prioRes.text();
+            const prioData = text ? JSON.parse(text) : [];
+            const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
+            const activePrio = pList.filter((p: any) => p.isActive);
+            setPriorityLevels(activePrio);
+            if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
+          } catch(e) {}
         }
         
         const walletRes = await fetch(`${API_BASE}/api/WalletAccount/GetByUserId?userId=${currentUserId}`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
         if (walletRes.ok) {
-          const wData = await walletRes.json();
-          setWalletBalance(wData.balance || 0);
+          try {
+            const text = await walletRes.text();
+            const wData = text ? JSON.parse(text) : {};
+            setWalletBalance(wData.balance || 0);
+          } catch(e) {}
         }
 
         const res = await fetch(
@@ -296,8 +342,12 @@ export default function CreateListingScreen() {
           { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
         );
         if (res.ok) {
-          const data = await res.json();
-          const spaces = Array.isArray(data) ? data : data?.data || [];
+          let spaces: any[] = [];
+          try {
+            const text = await res.text();
+            const data = text ? JSON.parse(text) : [];
+            spaces = Array.isArray(data) ? data : data?.data || [];
+          } catch(e) {}
           
           let allSpacesAndParts: any[] = [];
           
@@ -308,11 +358,14 @@ export default function CreateListingScreen() {
                 headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
               });
               if (partRes.ok) {
-                const partData = await partRes.json();
-                const parts = Array.isArray(partData) ? partData : (partData?.items || []);
-                parts.forEach((p: any) => {
-                  allSpacesAndParts.push({ ...p, isPart: true, parentName: space.name });
-                });
+                try {
+                  const text = await partRes.text();
+                  const partData = text ? JSON.parse(text) : [];
+                  const parts = Array.isArray(partData) ? partData : (partData?.items || []);
+                  parts.forEach((p: any) => {
+                    allSpacesAndParts.push({ ...p, isPart: true, parentName: space.name });
+                  });
+                } catch(e) {}
               }
             } catch (err) {
               console.error("Lỗi lấy space part", err);
@@ -324,27 +377,48 @@ export default function CreateListingScreen() {
               headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
             });
             if (usageRes.ok) {
-              const usageData = await usageRes.json();
-              const rights = Array.isArray(usageData) ? usageData : usageData?.data || [];
-              const shareableRights = rights.filter((r: any) => r.canShare === true);
-              const spacePromises = shareableRights.map((r: any) =>
-                fetch(`${API_BASE}/api/Space/GetById/${r.spaceId}`, {
-                  headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
-                }).then(r => r.ok ? r.json() : null)
-              );
-              const resolvedSpaces = await Promise.all(spacePromises);
-              const validUsageSpaces = resolvedSpaces.filter(Boolean);
-              for (const space of validUsageSpaces) {
-                if (!allSpacesAndParts.some(s => String(s.id || s.Id) === String(space.id || space.Id))) {
-                  allSpacesAndParts.push({ ...space, isPart: false });
+              try {
+                const text = await usageRes.text();
+                const usageData = text ? JSON.parse(text) : [];
+                const rights = Array.isArray(usageData) ? usageData : usageData?.data || [];
+                const shareableRights = rights.filter((r: any) => r.canShare === true);
+                const spacePromises = shareableRights.map((r: any) =>
+                  fetch(`${API_BASE}/api/Space/GetById/${r.spaceId}`, {
+                    headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
+                  }).then(r => r.ok ? r.text().then(t => t ? JSON.parse(t) : null).catch(() => null) : null)
+                );
+                const resolvedSpaces = await Promise.all(spacePromises);
+                const validUsageSpaces = resolvedSpaces.filter(Boolean);
+                for (const space of validUsageSpaces) {
+                  if (!allSpacesAndParts.some(s => String(s.id || s.Id) === String(space.id || space.Id))) {
+                    allSpacesAndParts.push({ ...space, isPart: false });
+                  }
                 }
-              }
+              } catch(e) {}
             }
           } catch (e) {
             console.error("Lỗi lấy quyền sử dụng mặt bằng", e);
           }
 
           setMySpaces(allSpacesAndParts);
+
+          const ownerIds = Array.from(new Set(allSpacesAndParts.map(s => s.ownerId || s.OwnerId || s.userId || s.UserId).filter(Boolean)));
+          const ownerPromises = ownerIds.map(async (id: any) => {
+              try {
+                  const resp = await fetch(`${API_BASE}/api/User/${id}`, { headers: { 'Authorization': `Bearer ${token}` }});
+                  if (resp.ok) {
+                      const text = await resp.text();
+                      const data = text ? JSON.parse(text) : {};
+                      return { id, name: data.profileFullName || data.userName || data.email || 'Unknown' };
+                  }
+              } catch {}
+              return { id, name: 'Unknown' };
+          });
+          const resolvedOwners = await Promise.all(ownerPromises);
+          const ownerMap: Record<string, string> = {};
+          resolvedOwners.forEach(o => { ownerMap[o.id] = o.name; });
+          setOwnerNames(ownerMap);
+
         }
       } catch (err) {
         console.error('Lỗi lấy dữ liệu:', err);
@@ -373,42 +447,46 @@ export default function CreateListingScreen() {
 
   const handleSubmit = async () => {
     if (spaceId === '') {
+      if (Platform.OS === 'web') return window.alert('Vui lòng chọn mặt bằng!');
       return Alert.alert('Lỗi', 'Vui lòng chọn mặt bằng!');
     }
     if (!name.trim()) {
+      if (Platform.OS === 'web') return window.alert('Vui lòng nhập tên bài đăng!');
       return Alert.alert('Lỗi', 'Vui lòng nhập tên bài đăng!');
     }
     if (!description.trim()) {
+      if (Platform.OS === 'web') return window.alert('Vui lòng nhập mô tả!');
       return Alert.alert('Lỗi', 'Vui lòng nhập mô tả!');
     }
     if (!price || Number(price) <= 0) {
+      if (Platform.OS === 'web') return window.alert('Đơn giá phải lớn hơn 0!');
       return Alert.alert('Lỗi', 'Đơn giá phải lớn hơn 0!');
     }
 
-    const startDate = new Date(allowedStartTime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (startDate < today) {
-      return Alert.alert('Lỗi', 'Thời gian bắt đầu không thể nằm trong quá khứ!');
-    }
+
 
     if (new Date(allowedEndTime) <= new Date(allowedStartTime)) {
+      if (Platform.OS === 'web') return window.alert('Thời gian kết thúc phải sau thời gian bắt đầu!');
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
     }
 
     if (priorityLevelId === '') {
+      if (Platform.OS === 'web') return window.alert('Vui lòng chọn gói bài đăng!');
       return Alert.alert('Lỗi', 'Vui lòng chọn gói bài đăng!');
     }
     const chosenPackagePrice = priorityLevels.find(p => p.id === priorityLevelId)?.price ?? 0;
     if (walletBalance !== null && walletBalance < chosenPackagePrice) {
+      if (Platform.OS === 'web') return window.alert(`Số dư ví không đủ để đăng tin! Cần ${chosenPackagePrice.toLocaleString('vi-VN')} VNĐ.`);
       return Alert.alert('Lỗi', `Số dư ví không đủ để đăng tin! Cần ${chosenPackagePrice.toLocaleString('vi-VN')} VNĐ.`);
     }
 
     if (listingType === 1) {
       if (!maxRenters || parseInt(maxRenters) <= 0) {
+        if (Platform.OS === 'web') return window.alert('Số lượng người tối đa phải lớn hơn 0!');
         return Alert.alert('Lỗi', 'Số lượng người tối đa phải lớn hơn 0!');
       }
       if (availabilities.some(slot => slot.daysOfWeek.length === 0 && !slot.specificdate)) {
+        if (Platform.OS === 'web') return window.alert('Vui lòng chọn ít nhất 1 ngày hoặc ngày cụ thể cho mỗi khung giờ chia sẻ!');
         return Alert.alert('Lỗi', 'Vui lòng chọn ít nhất 1 ngày hoặc ngày cụ thể cho mỗi khung giờ chia sẻ!');
       }
       const allowedEnd = new Date(allowedEndTime);
@@ -425,6 +503,7 @@ export default function CreateListingScreen() {
         return vTo > allowedEnd || vFrom < allowedStart || vFrom > vTo;
       });
       if (badSlot) {
+        if (Platform.OS === 'web') return window.alert(`Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ! Thời gian phải nằm trong khoảng từ ${allowedStartTime} đến ${allowedEndTime}.`);
         return Alert.alert('Lỗi', `Khung giờ áp dụng từ ${badSlot.validFrom} đến ${badSlot.validTo} không hợp lệ! Thời gian phải nằm trong khoảng từ ${allowedStartTime} đến ${allowedEndTime}.`);
       }
 
@@ -435,13 +514,16 @@ export default function CreateListingScreen() {
         return sDate > allowedEnd || sDate < allowedStart;
       });
       if (badSpecificDate) {
+        if (Platform.OS === 'web') return window.alert(`Ngày cụ thể của khung giờ chia sẻ phải nằm trong khoảng thời gian hiệu lực bài đăng!`);
         return Alert.alert('Lỗi', `Ngày cụ thể của khung giờ chia sẻ phải nằm trong khoảng thời gian hiệu lực bài đăng!`);
       }
       const badTimeSlot = availabilities.find(slot => slot.startTime >= slot.endTime);
       if (badTimeSlot) {
+        if (Platform.OS === 'web') return window.alert('Giờ kết thúc khung giờ chia sẻ phải sau giờ bắt đầu!');
         return Alert.alert('Lỗi', 'Giờ kết thúc khung giờ chia sẻ phải sau giờ bắt đầu!');
       }
       if (!isLegalCommitted) {
+        if (Platform.OS === 'web') return window.alert('Vui lòng tích "Cam kết pháp lý"!');
         return Alert.alert('Lỗi', 'Vui lòng tích "Cam kết pháp lý"!');
       }
     }
@@ -469,7 +551,7 @@ export default function CreateListingScreen() {
         shareSpaceDetailShareSpaceAmenities: [],
         shareSpaceDetailAvailabilitiesTimes: availabilities.map(slot => ({
           ...slot,
-          specificdate: slot.specificdate || null
+          specificdate: (slot.specificdate && !slot.specificdate.startsWith('0001')) ? slot.specificdate : undefined
         })),
         shareSpaceDetailShareSpaceCategories: []
       };
@@ -537,16 +619,30 @@ export default function CreateListingScreen() {
 
         if (!picRes.ok) {
           console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
-          Alert.alert('Cảnh báo', 'Tạo bài đăng thành công nhưng tải ảnh lên thất bại!');
-          return router.back();
+          if (Platform.OS === 'web') {
+            window.alert('Tạo bài đăng thành công nhưng tải ảnh lên thất bại!');
+            router.back();
+            return;
+          }
+          Alert.alert('Cảnh báo', 'Tạo bài đăng thành công nhưng tải ảnh lên thất bại!', [{ text: 'OK', onPress: () => router.back() }]);
+          return;
         }
       }
 
-      Alert.alert('Thành công', 'Đã tạo bài đăng thành công!', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      if (Platform.OS === 'web') {
+        window.alert('Đã tạo bài đăng thành công!');
+        router.back();
+      } else {
+        Alert.alert('Thành công', 'Đã tạo bài đăng thành công!', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      }
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      if (Platform.OS === 'web') {
+        window.alert(err.message);
+      } else {
+        Alert.alert('Lỗi', err.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -577,7 +673,9 @@ export default function CreateListingScreen() {
             onPress={() => setShowSpacePicker(true)}
           >
             <Text style={selectedSpace ? styles.pickerText : styles.pickerPlaceholder}>
-              {selectedSpace ? (selectedSpace.isPart ? `${selectedSpace.name} (Thuộc: ${selectedSpace.parentName})` : selectedSpace.name) : '-- Chọn mặt bằng --'}
+              {selectedSpace ? (
+                  `${selectedSpace.isPart ? `${selectedSpace.name} (Thuộc: ${selectedSpace.parentName})` : selectedSpace.name} (Chủ: ${ownerNames[selectedSpace.ownerId || selectedSpace.OwnerId || selectedSpace.userId || selectedSpace.UserId] || '...'})`
+              ) : '-- Chọn mặt bằng --'}
             </Text>
             <Feather name="chevron-down" size={18} color="#6B7280" />
           </TouchableOpacity>
@@ -741,6 +839,7 @@ export default function CreateListingScreen() {
             <DateField
               label="Từ ngày"
               value={allowedStartTime}
+              disabled={!!(timePolicy && timePolicy.allowedStartTime)}
               onChange={setAllowedStartTime}
             />
           </View>
@@ -749,10 +848,16 @@ export default function CreateListingScreen() {
               label="Đến ngày"
               value={allowedEndTime}
               minDate={allowedStartTime}
+              disabled={!!(timePolicy && timePolicy.allowedEndTime)}
               onChange={setAllowedEndTime}
             />
           </View>
         </View>
+        {listingType === 1 && timePolicy && timePolicy.message && (
+          <Text style={{ fontSize: 13, color: '#059669', fontStyle: 'italic', marginBottom: 10 }}>
+            * {timePolicy.message}
+          </Text>
+        )}
 
         {/* Hình ảnh */}
         <Text style={styles.sectionTitle}>Hình ảnh bài đăng (Tùy chọn)</Text>
@@ -845,7 +950,12 @@ export default function CreateListingScreen() {
                     setShowSpacePicker(false);
                   }}
                 >
-                  <Text style={styles.modalItemTitle}>{item.isPart ? `${item.name} (Thuộc: ${item.parentName})` : item.name}</Text>
+                  <Text style={styles.modalItemTitle}>
+                    {item.isPart ? `${item.name} (Thuộc: ${item.parentName})` : item.name}
+                  </Text>
+                  <Text style={styles.modalItemSub}>
+                    Chủ: {ownerNames[item.ownerId || item.OwnerId || item.userId || item.UserId] || '...'}
+                  </Text>
                   <Text style={styles.modalItemSub}>
                     {item.address || 'Chưa có địa chỉ'} • {item.area ? `${item.area} m²` : ''}
                   </Text>

@@ -83,7 +83,10 @@ export default function MyContractsScreen() {
 
       const contractMap = new Map<number, any>();
       [...asLessorContracts, ...asLesseeContracts].forEach((c: any) => {
-        contractMap.set(c.id ?? c.Id, c);
+        const source = c.source || c.Source;
+        if (source !== 'External') {
+          contractMap.set(c.id ?? c.Id, c);
+        }
       });
       const contracts = Array.from(contractMap.values());
 
@@ -299,7 +302,9 @@ export default function MyContractsScreen() {
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Người thuê & Hợp đồng</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={() => router.push('/uploaded-contracts')} style={styles.backBtn}>
+          <Feather name="upload-cloud" size={24} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.summaryRow}>

@@ -45,13 +45,13 @@ export default function ContractCreateScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  
+
   const [token, setToken] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
+
   const activeChat = params.activeChat ? JSON.parse(params.activeChat as string) : null;
   const existingContract = params.existingContract ? JSON.parse(params.existingContract as string) : null;
-  
+
   const isEditMode = !!existingContract?.id;
   const lessorId = activeChat?.lessorId || activeChat?.LessorId;
   const lesseeId = activeChat?.lesseeId || activeChat?.LesseeId;
@@ -59,6 +59,7 @@ export default function ContractCreateScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mySpaces, setMySpaces] = useState<any[]>([]);
+  const [ownerNames, setOwnerNames] = useState<Record<string, string>>({});
   const [matchedRequests, setMatchedRequests] = useState<any[]>([]);
 
   const [contractData, setContractData] = useState({
@@ -82,11 +83,11 @@ export default function ContractCreateScreen() {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  
+
   // Temporary state for adding a new schedule
   const [newSchedule, setNewSchedule] = useState<ContractSchedule>({ dayOfWeek: 'Monday', startTime: '08:00', endTime: '22:00' });
   const [showDayPicker, setShowDayPicker] = useState(false);
-  
+
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
   const [canShowShareCheckbox, setCanShowShareCheckbox] = useState(false);
@@ -98,10 +99,14 @@ export default function ContractCreateScreen() {
 
   useEffect(() => {
     const loadAuth = async () => {
-      const tk = await AsyncStorage.getItem('portal_token');
-      const uid = await AsyncStorage.getItem('current_user_id');
-      setToken(tk);
-      setCurrentUserId(uid);
+      try {
+        const tk = await AsyncStorage.getItem('portal_token');
+        const uid = await AsyncStorage.getItem('current_user_id');
+        setToken(tk);
+        setCurrentUserId(uid);
+      } catch (err) {
+        console.error("Lỗi lấy thông tin auth:", err);
+      }
     };
     loadAuth();
   }, []);
@@ -170,7 +175,7 @@ export default function ContractCreateScreen() {
 
     const spaceName = mySpaces.find(s => String(s.id) === String(contractData.spaceId))?.name || '';
     const spaceAddress = mySpaces.find(s => String(s.id) === String(contractData.spaceId))?.address || '';
-    
+
     const formatCurrencyVal = (val: number | string) => {
       if (!val) return '';
       return parseInt(String(val)).toLocaleString('vi-VN');
@@ -196,13 +201,13 @@ export default function ContractCreateScreen() {
       BEN_B_HO_TEN: lesseeProfile?.fullName,
       BEN_B_CCCD: lesseeProfile?.citizenIDNumber,
       BEN_B_CCCD_NGAY_CAP: lesseeProfile?.dateOfIssue ? new Date(lesseeProfile.dateOfIssue).toLocaleDateString('vi-VN') : '',
-      QUYEN_CHO_THUE_LAI: canShareSpace 
+      QUYEN_CHO_THUE_LAI: canShareSpace
         ? 'Bên B ĐƯỢC PHÉP cho bên thứ ba thuê lại mặt bằng này trong thời hạn hợp đồng.'
         : 'Bên B KHÔNG ĐƯỢC PHÉP cho bên thứ ba thuê lại mặt bằng này dưới mọi hình thức, trừ khi có sự đồng ý bằng văn bản của Bên A.',
     };
 
     let newDesc = contractData.description || '';
-    
+
     if (!newDesc || !lastRenderedRef.current || Object.keys(lastRenderedRef.current).length === 0) {
       newDesc = fillContractTemplate(template, mergeData);
     } else {
@@ -225,19 +230,19 @@ export default function ContractCreateScreen() {
       setContractData(prev => ({ ...prev, description: newDesc }));
     }
   }, [
-    selectedTemplateId, 
-    contractData.spaceId, 
-    contractData.primaryBookingRequestId, 
-    contractData.acreage, 
-    contractData.businessPurpose, 
-    contractData.contractSchedules, 
-    contractData.price, 
-    contractData.depositAmount, 
-    contractData.duration, 
-    contractData.durationUnit, 
-    contractData.startDate, 
-    mySpaces, 
-    lessorProfile, 
+    selectedTemplateId,
+    contractData.spaceId,
+    contractData.primaryBookingRequestId,
+    contractData.acreage,
+    contractData.businessPurpose,
+    contractData.contractSchedules,
+    contractData.price,
+    contractData.depositAmount,
+    contractData.duration,
+    contractData.durationUnit,
+    contractData.startDate,
+    mySpaces,
+    lessorProfile,
     lesseeProfile,
     canShareSpace
   ]);
@@ -249,7 +254,7 @@ export default function ContractCreateScreen() {
         if (!existingContract) setCanShareSpace(false);
         return;
       }
-      
+
       const selectedSpace = mySpaces.find(s => String(s.id || s.Id) === String(contractData.spaceId));
       let isOwner = false;
       if (selectedSpace) {
@@ -280,12 +285,66 @@ export default function ContractCreateScreen() {
   const fetchMySpaces = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/Space/GetAll?OwnerId=${currentUserId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
       });
+      let ownerSpaces: any[] = [];
       if (res.ok) {
-        const data = await res.json();
-        setMySpaces(Array.isArray(data) ? data : data?.data || data?.items || []);
+        try {
+          const text = await res.text();
+          const data = text ? JSON.parse(text) : [];
+          ownerSpaces = Array.isArray(data) ? data : data?.data || data?.items || [];
+        } catch (e) {
+          console.log("Error parsing Space/GetAll:", e);
+        }
       }
+
+      const resUsage = await fetch(`${API_BASE}/api/SpaceUsageRight/Mine`, {
+        headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
+      });
+      let usageSpaces: any[] = [];
+      if (resUsage.ok) {
+        try {
+          const text = await resUsage.text();
+          const usageData = text ? JSON.parse(text) : [];
+          const rights = Array.isArray(usageData) ? usageData : (usageData?.data || usageData?.items || []);
+          const shareableRights = rights.filter((r: any) => r.canShare === true || r.CanShare === true);
+          const spacePromises = shareableRights.map((r: any) =>
+            fetch(`${API_BASE}/api/Space/GetById/${r.spaceId || r.SpaceId}`, {
+              headers: { Authorization: `Bearer ${token}`, accept: '*/*' },
+            })
+              .then(res => res.ok ? res.text().then(t => t ? JSON.parse(t) : null).then(d => (d?.data || d?.items || d)).catch(() => null) : null)
+              .catch(() => null)
+          );
+          const resolvedSpaces = await Promise.all(spacePromises);
+          usageSpaces = resolvedSpaces.filter(Boolean);
+        } catch (e) {
+          console.log("Error parsing SpaceUsageRight/Mine:", e);
+        }
+      }
+
+      const allSpaces = [...ownerSpaces, ...usageSpaces];
+      const uniqueSpaces = Array.from(new Map(allSpaces.map((item) => [item.id || item.Id, item])).values());
+      
+      setMySpaces(uniqueSpaces);
+
+      // Fetch owner names for spaces not owned by current user
+      const ownerIds = Array.from(new Set(uniqueSpaces.map(s => s.ownerId || s.OwnerId || s.userId || s.UserId).filter(Boolean)));
+      const ownerPromises = ownerIds.map(async (id: any) => {
+          try {
+              const resp = await fetch(`${API_BASE}/api/User/${id}`, { headers: { 'Authorization': `Bearer ${token}` }});
+              if (resp.ok) {
+                  const text = await resp.text();
+                  const data = text ? JSON.parse(text) : {};
+                  return { id, name: data.profileFullName || data.userName || data.email || 'Unknown' };
+              }
+          } catch {}
+          return { id, name: 'Unknown' };
+      });
+      const resolvedOwners = await Promise.all(ownerPromises);
+      const ownerMap: Record<string, string> = {};
+      resolvedOwners.forEach(o => { ownerMap[o.id] = o.name; });
+      setOwnerNames(ownerMap);
+
     } catch (err) {
       console.error(err);
     }
@@ -300,7 +359,7 @@ export default function ContractCreateScreen() {
         const data = await res.json();
         const all = Array.isArray(data) ? data : data?.data || data?.items || [];
         let matched = all.filter((r: any) => String(r.lessorId) === String(lessorId) && String(r.lesseeId) === String(lesseeId));
-        
+
         if (existingContract?.primaryBookingRequestId && !matched.some((r: any) => String(r.id) === String(existingContract.primaryBookingRequestId))) {
           matched = [
             {
@@ -312,9 +371,9 @@ export default function ContractCreateScreen() {
             ...matched,
           ];
         }
-        
+
         setMatchedRequests(matched);
-        
+
         if (!existingContract && matched.length === 1) {
           const only = matched[0];
           setContractData(prev => ({
@@ -345,12 +404,12 @@ export default function ContractCreateScreen() {
     if (Number(contractData.acreage) <= 0) return Alert.alert('Lỗi', 'Diện tích phải lớn hơn 0!');
     if (!contractData.businessPurpose.trim()) return Alert.alert('Lỗi', 'Vui lòng nhập mục đích kinh doanh!');
     if (!isEditMode && !selectedTemplateId) return Alert.alert('Lỗi', 'Vui lòng chọn mẫu hợp đồng!');
-    
+
     const selectedRequest = matchedRequests.find(r => String(r.id) === String(contractData.primaryBookingRequestId));
     if (selectedRequest && selectedRequest.spaceId && String(selectedRequest.spaceId) !== String(contractData.spaceId)) {
       return Alert.alert('Lỗi', 'Mặt bằng đã chọn không khớp với mặt bằng của yêu cầu thuê này!');
     }
-    
+
     setIsSubmitting(true);
     const roomId = activeChat?.conversationId || activeChat?.id || activeChat?.Id;
 
@@ -382,10 +441,15 @@ export default function ContractCreateScreen() {
           const errText = await updateRes.text().catch(() => '');
           console.error('[Contract/Update] error:', updateRes.status, errText);
           let errMsg = 'Cập nhật thất bại';
-          try { const e = JSON.parse(errText); errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); } catch {}
+          try { const e = JSON.parse(errText); errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); } catch { }
           throw new Error(errMsg);
         }
-        Alert.alert('Thành công', 'Cập nhật hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
+        if (Platform.OS === 'web') {
+          window.alert('Cập nhật hợp đồng thành công!');
+          router.back();
+        } else {
+          Alert.alert('Thành công', 'Cập nhật hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
+        }
       } else {
         const createPayload = { ...payload, lessorId, lesseeId };
         console.log('[Contract/Create] payload:', JSON.stringify(createPayload));
@@ -398,23 +462,32 @@ export default function ContractCreateScreen() {
           const errText = await createRes.text().catch(() => '');
           console.error('[Contract/Create] error:', createRes.status, errText);
           let errMsg = 'Tạo hợp đồng thất bại';
-          try { const e = JSON.parse(errText); errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); } catch {}
+          try { const e = JSON.parse(errText); errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); } catch { }
           throw new Error(errMsg);
         }
-        
+
         const createdContract = await createRes.json();
         const newContractId = createdContract.id || createdContract.Id;
-        
+
         if (newContractId) {
           await fetch(`${API_BASE}/api/Contract/${newContractId}/share`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
         }
-        Alert.alert('Thành công', 'Tạo hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
+        if (Platform.OS === 'web') {
+          window.alert('Tạo hợp đồng thành công!');
+          router.back();
+        } else {
+          Alert.alert('Thành công', 'Tạo hợp đồng thành công!', [{ text: 'OK', onPress: () => router.back() }]);
+        }
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message);
+      if (Platform.OS === 'web') {
+        window.alert(err.message);
+      } else {
+        Alert.alert('Lỗi', err.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -425,7 +498,7 @@ export default function ContractCreateScreen() {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView>
+          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
             {items.map((item, idx) => (
               <TouchableOpacity key={idx} style={styles.modalItem} onPress={() => { onSelect(item[valKey]); setVisible(false); }}>
                 <Text style={styles.modalItemText}>{item[displayKey]}</Text>
@@ -453,17 +526,17 @@ export default function ContractCreateScreen() {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Yêu cầu đặt thuê (Bắt buộc) *</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowRequestPicker(true)}>
             <Text style={[styles.pickerText, { flex: 1 }]} numberOfLines={1}>
-              {contractData.primaryBookingRequestId 
+              {contractData.primaryBookingRequestId
                 ? (() => {
-                    const req = matchedRequests.find(r => r.id === contractData.primaryBookingRequestId);
-                    const space = mySpaces.find(s => String(s.id || s.Id) === String(req?.spaceId));
-                    return req ? `Yêu cầu #${req.id} - ${space?.name || 'Mặt bằng trống'} - ${Number(req.offeredPrice || 0).toLocaleString('vi-VN')} VNĐ` : `Yêu cầu #${contractData.primaryBookingRequestId}`;
-                  })()
+                  const req = matchedRequests.find(r => r.id === contractData.primaryBookingRequestId);
+                  const space = mySpaces.find(s => String(s.id || s.Id) === String(req?.spaceId));
+                  return req ? `Yêu cầu #${req.id} - ${space?.name || 'Mặt bằng trống'} - ${Number(req.offeredPrice || 0).toLocaleString('vi-VN')} VNĐ` : `Yêu cầu #${contractData.primaryBookingRequestId}`;
+                })()
                 : 'Chọn yêu cầu thuê'}
             </Text>
             <Feather name="chevron-down" size={20} color="#6B7280" />
@@ -474,8 +547,8 @@ export default function ContractCreateScreen() {
           <Text style={styles.label}>Lịch hoạt động</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowScheduleModal(true)}>
             <Text style={styles.pickerText}>
-              {contractData.contractSchedules.length > 0 
-                ? `${contractData.contractSchedules.length} khung giờ đã chọn` 
+              {contractData.contractSchedules.length > 0
+                ? `${contractData.contractSchedules.length} khung giờ đã chọn`
                 : 'Quản lý lịch hoạt động (tuỳ chọn)'}
             </Text>
             <Feather name="clock" size={20} color="#6B7280" />
@@ -486,7 +559,19 @@ export default function ContractCreateScreen() {
           <Text style={styles.label}>Mặt bằng</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowSpacePicker(true)}>
             <Text style={styles.pickerText}>
-              {mySpaces.find(s => String(s.id) === String(contractData.spaceId))?.name || 'Chọn mặt bằng'}
+              {(() => {
+                const s = mySpaces.find(sp => String(sp.id || sp.Id) === String(contractData.spaceId));
+                if (s) {
+                  const parentName = s.parentSpaceName || s.ParentSpaceName;
+                  const spaceName = s.name || s.Name;
+                  const ownerId = s.ownerId || s.OwnerId || s.userId || s.UserId;
+                  const oName = ownerNames[ownerId] || 'Unknown';
+                  const isOwner = String(ownerId) === String(currentUserId);
+                  const namePart = parentName ? `${parentName} - ${spaceName}` : spaceName;
+                  return isOwner ? namePart : `${namePart} (Chủ: ${oName})`;
+                }
+                return 'Chọn mặt bằng';
+              })()}
             </Text>
             <Feather name="chevron-down" size={20} color="#6B7280" />
           </TouchableOpacity>
@@ -652,8 +737,8 @@ export default function ContractCreateScreen() {
         )}
 
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-          <TouchableOpacity 
-            style={[styles.submitBtn, { flex: 1, backgroundColor: '#3B82F6' }]} 
+          <TouchableOpacity
+            style={[styles.submitBtn, { flex: 1, backgroundColor: '#3B82F6' }]}
             onPress={() => setShowPreviewModal(true)}
           >
             <Text style={styles.submitBtnText}>Xem trước</Text>
@@ -668,7 +753,19 @@ export default function ContractCreateScreen() {
         </View>
       </ScrollView>
 
-      {renderPickerModal(showSpacePicker, setShowSpacePicker, 'Chọn mặt bằng', mySpaces, (val) => setContractData({ ...contractData, spaceId: val }), 'name', 'id')}
+      {renderPickerModal(showSpacePicker, setShowSpacePicker, 'Chọn mặt bằng', mySpaces.map(s => {
+        const parentName = s.parentSpaceName || s.ParentSpaceName;
+        const spaceName = s.name || s.Name;
+        const ownerId = s.ownerId || s.OwnerId || s.userId || s.UserId;
+        const oName = ownerNames[ownerId] || 'Unknown';
+        const isOwner = String(ownerId) === String(currentUserId);
+        const namePart = parentName ? `${parentName} - ${spaceName}` : spaceName;
+        return {
+          ...s,
+          displayName: isOwner ? namePart : `${namePart} (Chủ: ${oName})`,
+          id: s.id || s.Id
+        };
+      }), (val) => setContractData({ ...contractData, spaceId: val }), 'displayName', 'id')}
       {renderPickerModal(showRequestPicker, setShowRequestPicker, 'Chọn yêu cầu', matchedRequests.map(req => {
         const space = mySpaces.find(s => String(s.id || s.Id) === String(req.spaceId));
         return {
@@ -677,8 +774,8 @@ export default function ContractCreateScreen() {
         };
       }), (val) => {
         const req = matchedRequests.find(r => r.id === val);
-        setContractData({ 
-          ...contractData, 
+        setContractData({
+          ...contractData,
           primaryBookingRequestId: val,
           ...(req?.spaceId ? { spaceId: String(req.spaceId) } : {})
         });
@@ -742,7 +839,7 @@ export default function ContractCreateScreen() {
                 ))
               )}
             </ScrollView>
-            
+
             <View style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, marginBottom: 16 }}>
               <Text style={{ fontWeight: '600', marginBottom: 8, color: '#374151' }}>Thêm khung giờ mới</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -754,20 +851,20 @@ export default function ContractCreateScreen() {
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <TextInput 
-                  style={[styles.input, { flex: 1, marginRight: 8 }]} 
-                  placeholder="Giờ BĐ (vd: 08:00)" 
+                <TextInput
+                  style={[styles.input, { flex: 1, marginRight: 8 }]}
+                  placeholder="Giờ BĐ (vd: 08:00)"
                   value={newSchedule.startTime}
                   onChangeText={(val) => setNewSchedule({ ...newSchedule, startTime: val })}
                 />
-                <TextInput 
-                  style={[styles.input, { flex: 1 }]} 
-                  placeholder="Giờ KT (vd: 22:00)" 
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Giờ KT (vd: 22:00)"
                   value={newSchedule.endTime}
                   onChangeText={(val) => setNewSchedule({ ...newSchedule, endTime: val })}
                 />
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ backgroundColor: '#10B981', padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 10 }}
                 onPress={() => {
                   if (!newSchedule.startTime || !newSchedule.endTime) return Alert.alert('Lỗi', 'Vui lòng nhập giờ bắt đầu và kết thúc');
@@ -777,7 +874,7 @@ export default function ContractCreateScreen() {
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Thêm</Text>
               </TouchableOpacity>
             </View>
-            
+
             <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowScheduleModal(false)}>
               <Text style={styles.closeModalText}>Xong</Text>
             </TouchableOpacity>
@@ -816,7 +913,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 10
   },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#fff', borderRadius: 12, maxHeight: '80%', padding: 16 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 16, textAlign: 'center' },
