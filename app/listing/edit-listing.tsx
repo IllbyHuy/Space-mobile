@@ -535,7 +535,7 @@ export default function EditListingScreen() {
 
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
-        let errMsg = 'Cập nhật bài đăng thất bại!';
+        let errMsg = errBody || 'Cập nhật bài đăng thất bại!';
         try {
           const parsed = JSON.parse(errBody);
           if (parsed.errors && typeof parsed.errors === 'object') {

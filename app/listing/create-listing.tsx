@@ -605,7 +605,7 @@ export default function CreateListingScreen() {
       if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         console.error('Listing/Create error:', res.status, errBody);
-        let errMsg = 'Tạo bài đăng thất bại!';
+        let errMsg = errBody || 'Tạo bài đăng thất bại!';
         try {
           const parsed = JSON.parse(errBody);
           if (parsed.errors && typeof parsed.errors === 'object') {
