@@ -538,7 +538,16 @@ export default function EditListingScreen() {
         let errMsg = 'Cập nhật bài đăng thất bại!';
         try {
           const parsed = JSON.parse(errBody);
-          errMsg = parsed.message || parsed.title || parsed.detail || errMsg;
+          if (parsed.errors && typeof parsed.errors === 'object') {
+            const fieldMessages = Object.values(parsed.errors).flat().filter(Boolean) as string[];
+            if (fieldMessages.length > 0) {
+              errMsg = fieldMessages.join('\n');
+            } else {
+              errMsg = parsed.message || parsed.title || parsed.detail || errMsg;
+            }
+          } else {
+            errMsg = parsed.message || parsed.title || parsed.detail || errMsg;
+          }
         } catch {}
         throw new Error(errMsg);
       }
