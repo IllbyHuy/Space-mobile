@@ -22,6 +22,39 @@ const getNextMonthDate = () => {
   return d.toISOString().slice(0, 10);
 };
 
+const getValidDaysOfWeek = (validFrom?: string, validTo?: string) => {
+  if (!validFrom || !validTo) return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  const parseDate = (dStr: string) => {
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 0, 0, 0);
+    }
+    return new Date(dStr);
+  };
+
+  const start = parseDate(validFrom);
+  const end = parseDate(validTo);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return [];
+
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays >= 6) {
+    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  }
+
+  const validDays = [];
+  const current = new Date(start.getTime());
+  const daysMap = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  for (let i = 0; i <= diffDays; i++) {
+    validDays.push(daysMap[current.getDay()]);
+    current.setDate(current.getDate() + 1);
+  }
+  return [...new Set(validDays)];
+};
+
 function WebDateInput({
   value,
   min,
@@ -412,11 +445,7 @@ export default function EditListingScreen() {
     }
 
     const startDate = new Date(allowedStartTime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (startDate < today) {
-      return Alert.alert('Lỗi', 'Thời gian bắt đầu không thể nằm trong quá khứ!');
-    }
+
 
     if (new Date(allowedEndTime) <= new Date(allowedStartTime)) {
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
@@ -639,11 +668,14 @@ export default function EditListingScreen() {
 
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                     {DAYS_OF_WEEK.map(day => {
+                      const validDays = getValidDaysOfWeek(slot.validFrom, slot.validTo);
+                      const isDayValid = validDays.includes(day);
                       const isSelected = slot.daysOfWeek.includes(day);
                       return (
                         <TouchableOpacity
                           key={day}
-                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: isSelected ? '#00A67E' : '#D1D5DB', backgroundColor: isSelected ? '#00A67E' : '#fff' }}
+                          disabled={!isDayValid}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: isSelected ? '#00A67E' : (isDayValid ? '#D1D5DB' : '#E5E7EB'), backgroundColor: isSelected ? '#00A67E' : (isDayValid ? '#fff' : '#F3F4F6'), opacity: isDayValid ? 1 : 0.5 }}
                           onPress={() => {
                             setAvailabilities(prev => prev.map((s, i) => {
                               if (i !== index) return s;
@@ -652,7 +684,7 @@ export default function EditListingScreen() {
                             }));
                           }}
                         >
-                          <Text style={{ color: isSelected ? '#fff' : '#374151', fontSize: 12 }}>{DAYS_LABEL_VI[day]}</Text>
+                          <Text style={{ color: isSelected ? '#fff' : (isDayValid ? '#374151' : '#9CA3AF'), fontSize: 12 }}>{DAYS_LABEL_VI[day]}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -669,10 +701,18 @@ export default function EditListingScreen() {
 
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <View style={{ flex: 1 }}>
-                      <DateField label="Áp dụng từ" value={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validFrom: v } : s))} />
+                      <DateField label="Áp dụng từ" value={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => {
+                        if (i !== index) return s;
+                        const validDays = getValidDaysOfWeek(v, s.validTo);
+                        return { ...s, validFrom: v, daysOfWeek: s.daysOfWeek.filter((d: string) => validDays.includes(d)) };
+                      }))} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <DateField label="Áp dụng đến" value={slot.validTo} minDate={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, validTo: v } : s))} />
+                      <DateField label="Áp dụng đến" value={slot.validTo} minDate={slot.validFrom} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => {
+                        if (i !== index) return s;
+                        const validDays = getValidDaysOfWeek(s.validFrom, v);
+                        return { ...s, validTo: v, daysOfWeek: s.daysOfWeek.filter((d: string) => validDays.includes(d)) };
+                      }))} />
                     </View>
                   </View>
                 </View>
