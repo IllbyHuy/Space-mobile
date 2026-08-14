@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -797,6 +798,34 @@ export default function EditListingScreen() {
               />
             </View>
           </View>
+
+          {/* Banner Quảng Cáo AI Image Editor */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#F0F9FF',
+              padding: 16,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#BAE6FD',
+              marginBottom: 20,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+            onPress={() => {
+              router.push('/ai-editor' as any);
+            }}
+          >
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#0369A1', marginBottom: 4 }}>
+                ✨ Trải nghiệm AI Image Editor
+              </Text>
+              <Text style={{ fontSize: 13, color: '#075985', lineHeight: 20 }}>
+                Sử dụng AI để tự động thêm vật thể, nội thất, và nâng tầm hình ảnh mặt bằng của bạn!
+              </Text>
+            </View>
+            <Feather name="external-link" size={24} color="#0369A1" />
+          </TouchableOpacity>
 
           {/* Hình ảnh */}
           <Text style={styles.sectionTitle}>Hình ảnh bài đăng (Tùy chọn)</Text>

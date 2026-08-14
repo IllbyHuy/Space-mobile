@@ -36,7 +36,19 @@ const DAY_LABELS: Record<number, string> = {
   6: "Thứ 7",
 };
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const formatTime = (t: string) => (t ? t.substring(0, 5) : "");
+const formatTime = (timeString: string) => {
+  if (!timeString) return "";
+  const parts = timeString.split(":");
+  if (parts.length >= 2) {
+    let hours = parseInt(parts[0], 10);
+    const minutes = parts[1];
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    return `${hours}:${minutes} ${ampm}`;
+  }
+  return timeString;
+};
 
 const getPicUrl = (pic: any) => {
   if (!pic) return FALLBACK_IMAGE;
@@ -45,8 +57,14 @@ const getPicUrl = (pic: any) => {
 };
 
 export default function ListingDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, openBooking } = useLocalSearchParams();
   const router = useRouter();
+  
+  useEffect(() => {
+    if (openBooking === 'true') {
+      setIsBookingModalOpen(true);
+    }
+  }, [openBooking]);
   const insets = useSafeAreaInsets();
 
   const [listing, setListing] = useState<any>(null);
@@ -62,6 +80,7 @@ export default function ListingDetailScreen() {
   const [bookingPurpose, setBookingPurpose] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
   // Default to tomorrow to pass backend validation
   const [bookingStartDate, setBookingStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -341,7 +360,7 @@ export default function ListingDetailScreen() {
         if (res.ok) {
           const conv = await res.json();
           if (conv && (conv.id || conv.Id)) {
-            router.push({ pathname: '/chat', params: { conversationId: conv.id || conv.Id } });
+            router.push({ pathname: '/chat', params: { conversationId: conv.id || conv.Id, listingId: listing?.id || listing?.Id } });
             return;
           }
         }
@@ -466,7 +485,13 @@ export default function ListingDetailScreen() {
 
           {/* 4. CHỦ NHÀ */}
           {!isOwner && (
-            <View style={styles.hostSection}>
+            <TouchableOpacity 
+              style={styles.hostSection}
+              onPress={() => {
+                const uId = listing.creatorId || listing.CreatorId;
+                if (uId) router.push(`/public-profile/${uId}` as any);
+              }}
+            >
               <View style={styles.hostAvatar}>
                 <Text style={styles.hostAvatarText}>
                   {(listing.lessorName || "CH").substring(0, 2).toUpperCase()}
@@ -481,16 +506,26 @@ export default function ListingDetailScreen() {
               <TouchableOpacity style={styles.chatIconBtn} onPress={handleContactPress}>
                 <Feather name="message-circle" size={20} color="#00A67E" />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* 5. MÔ TẢ */}
           <View style={styles.descSection}>
             <Text style={styles.sectionTitle}>Thông tin mô tả</Text>
-            <Text style={styles.description}>
+            <Text 
+              style={styles.description}
+              numberOfLines={isDescExpanded ? undefined : 4}
+            >
               {listing.description ||
                 "Chủ nhà chưa cung cấp mô tả chi tiết cho mặt bằng này."}
             </Text>
+            {listing.description && listing.description.length > 150 && (
+              <TouchableOpacity onPress={() => setIsDescExpanded(!isDescExpanded)}>
+                <Text style={{ color: "#00A67E", marginTop: 4, fontWeight: "500" }}>
+                  {isDescExpanded ? "Thu gọn" : "Xem chi tiết"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* 6. TIỆN ÍCH */}
@@ -717,9 +752,14 @@ export default function ListingDetailScreen() {
                 </Text>
               </Text>
             </View>
-            <TouchableOpacity style={styles.bookBtn} onPress={handleContactPress}>
-              <Text style={styles.bookBtnText}>Liên hệ / Gửi yêu cầu</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, flex: 1.5 }}>
+              <TouchableOpacity style={[styles.bookBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={handleContactPress}>
+                <Text style={[styles.bookBtnText, { color: '#00A67E' }]}>Chat ngay</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bookBtn, { flex: 1 }]} onPress={() => setIsBookingModalOpen(true)}>
+                <Text style={styles.bookBtnText}>Yêu cầu</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
       })()}

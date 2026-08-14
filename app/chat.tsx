@@ -24,6 +24,8 @@ export default function ChatScreen() {
   const [showContractOptions, setShowContractOptions] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [message, setMessage] = useState('');
+  const [relatedRequests, setRelatedRequests] = useState<any[]>([]);
+  const [showRequestPopup, setShowRequestPopup] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function ChatScreen() {
     activeChatRef.current = activeChat;
   }, [activeChat]);
 
-  const { conversationId } = useLocalSearchParams();
+  const { conversationId, listingId } = useLocalSearchParams();
   const hasAutoOpened = useRef(false);
 
   useEffect(() => {
@@ -91,8 +93,36 @@ export default function ChatScreen() {
         headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
       });
       if (!res.ok) return;
-      const myRooms: any[] = await res.json();
-      setConversations(myRooms);
+      let myRooms: any[] = await res.json();
+      
+      // Fetch latest message history for each room to show preview
+      myRooms = await Promise.all(myRooms.map(async (room) => {
+        const roomId = room.id || room.Id;
+        try {
+          const histRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Message/GetMessageHistory?conversationId=${roomId}&limit=1`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
+          });
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            if (histData && histData.length > 0) {
+              const latest = histData[0];
+              // Format system messages or normal text
+              let content = latest.content || latest.message || "";
+              if (/^\d+$/.test(content.trim())) {
+                content = `📄 Đã gửi hợp đồng #${content.trim()}`;
+              }
+              room.lastMessageContent = content;
+              room.lastMessageTime = latest.createdAt || latest.sentAt || room.lastMessage;
+            }
+          }
+        } catch (e) {
+          console.log("Error fetching history for room", roomId, e);
+        }
+        return room;
+      }));
+
+      const sortedRooms = myRooms.sort((a, b) => new Date(b.lastMessageTime || b.lastMessage).getTime() - new Date(a.lastMessageTime || a.lastMessage).getTime());
+      setConversations(sortedRooms);
 
       const activeConnection = connectionRef.current;
       if (activeConnection) {
@@ -131,8 +161,30 @@ export default function ChatScreen() {
         globalConnection.on("ReceiveNewMessage", (savedMessage: any) => {
           if (typeof savedMessage === 'string') return;
           const incomingRoomId = savedMessage.conversationId;
-          const currentActive = activeChatRef.current;
+          
+          // Update the list view
+          setConversations(prev => {
+            const index = prev.findIndex(c => c.id === incomingRoomId || c.Id === incomingRoomId);
+            if (index !== -1) {
+              const updatedRoom = { ...prev[index] };
+              let content = savedMessage.content || savedMessage.message || "";
+              if (/^\d+$/.test(content.trim())) {
+                content = `📄 Đã gửi hợp đồng #${content.trim()}`;
+              }
+              updatedRoom.lastMessageContent = content;
+              updatedRoom.lastMessageTime = savedMessage.createdAt || new Date().toISOString();
+              if (String(savedMessage.senderId) !== String(currentUserId)) {
+                  updatedRoom.unreadCount = (updatedRoom.unreadCount || 0) + 1;
+              }
+              const newConversations = [...prev];
+              newConversations.splice(index, 1);
+              newConversations.unshift(updatedRoom);
+              return newConversations;
+            }
+            return prev;
+          });
 
+          const currentActive = activeChatRef.current;
           if (currentActive && (currentActive.id === incomingRoomId || currentActive.conversationId === incomingRoomId)) {
             setChatHistory(prev => {
               if (prev.some(m => m.id === savedMessage.id)) return prev;
@@ -218,6 +270,49 @@ export default function ChatScreen() {
     }
   }, [conversationId, conversations, view]);
 
+  // Fetch Booking Requests related to activeChat
+  useEffect(() => {
+    if (activeChat && view === 'CHAT') {
+      const fetchReqs = async () => {
+        try {
+          const otherId = isLessor ? activeChat?.lesseeId || activeChat?.LesseeId : activeChat?.lessorId || activeChat?.LessorId;
+          const [reqRes1, reqRes2, spaceRes, listingRes] = await Promise.all([
+            fetch(`https://flexi-space-capstone-project.onrender.com/api/PrimaryBookingRequest/GetAll?status=1`, { headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' } }),
+            fetch(`https://flexi-space-capstone-project.onrender.com/api/PrimaryBookingRequest/GetAll?status=2`, { headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' } }),
+            fetch(`https://flexi-space-capstone-project.onrender.com/api/Space/GetAll`, { headers: { 'accept': '*/*' } }),
+            fetch(`https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll`, { headers: { 'accept': '*/*' } })
+          ]);
+          
+          if (reqRes1.ok || reqRes2.ok) {
+            const data1 = reqRes1.ok ? await reqRes1.json() : [];
+            const data2 = reqRes2.ok ? await reqRes2.json() : [];
+            const safeData = [...(Array.isArray(data1) ? data1 : data1?.data || []), ...(Array.isArray(data2) ? data2 : data2?.data || [])];
+            
+            const spaceData = spaceRes.ok ? await spaceRes.json() : [];
+            const listingData = listingRes.ok ? await listingRes.json() : [];
+            const spaces = Array.isArray(spaceData) ? spaceData : spaceData?.data || [];
+            const listings = Array.isArray(listingData) ? listingData : listingData?.data || [];
+            
+            const reqs = safeData.filter((r: any) => 
+              (String(r.lessorId) === String(currentUserId) && String(r.lesseeId) === String(otherId)) ||
+              (String(r.lessorId) === String(otherId) && String(r.lesseeId) === String(currentUserId))
+            ).map((r: any) => {
+              const space = spaces.find((s: any) => s.id === r.spaceId || s.Id === r.spaceId);
+              const listing = listings.find((l: any) => l.id === r.listingId || l.Id === r.listingId);
+              return {
+                ...r,
+                spaceName: space?.name || space?.Name || 'Không xác định',
+                listingName: listing?.name || listing?.Name || 'Không xác định'
+              };
+            });
+            setRelatedRequests(reqs);
+          }
+        } catch(e) {}
+      };
+      fetchReqs();
+    }
+  }, [activeChat, view, token, currentUserId, isLessor]);
+
   // Y HỆT LOGIC handleSendMessage CỦA BẢN WEB: chỉ gửi khi connection đã sẵn
   // sàng (được thiết lập từ effect global ở trên), KHÔNG tự tạo connection mới
   // ở đây. Nút gửi & ô nhập liệu đã bị disable khi !connection nên trường hợp
@@ -290,15 +385,35 @@ export default function ChatScreen() {
             contentContainerStyle={{ paddingBottom: 100 }}
             renderItem={({ item }) => {
               const displayName = getOtherPersonName(item);
+              const previewText = item.lastMessageContent || "Nhấp để xem tin nhắn...";
+              const isUnread = item.unreadCount > 0;
+              
+              let timeString = "";
+              if (item.lastMessageTime || item.lastMessage) {
+                const d = new Date(item.lastMessageTime || item.lastMessage);
+                const isToday = d.toLocaleDateString() === new Date().toLocaleDateString();
+                timeString = isToday 
+                  ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
+                  : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+              }
+
               return (
                 <TouchableOpacity style={styles.chatItem} onPress={() => openChatRoom(item)}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{displayName.substring(0, 2).toUpperCase()}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.chatName} numberOfLines={1}>{displayName}</Text>
-                    <Text style={styles.chatPreview}>Nhấp để xem tin nhắn...</Text>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={[styles.chatName, isUnread && { fontWeight: 'bold' }, { flex: 1, marginBottom: 0 }]} numberOfLines={1}>{displayName}</Text>
+                      {timeString ? <Text style={{ fontSize: 12, color: isUnread ? '#10B981' : '#9CA3AF', fontWeight: isUnread ? 'bold' : 'normal' }}>{timeString}</Text> : null}
+                    </View>
+                    <Text style={[styles.chatPreview, isUnread && { fontWeight: 'bold', color: '#000' }]} numberOfLines={1}>{previewText}</Text>
                   </View>
+                  {isUnread && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>{item.unreadCount}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             }}
@@ -316,22 +431,71 @@ export default function ChatScreen() {
             <TouchableOpacity onPress={() => { setView('LIST'); Keyboard.dismiss(); }} style={{ padding: 4 }}>
               <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <View style={styles.chatHeaderInfo}>
+            <TouchableOpacity style={styles.chatHeaderInfo} onPress={() => {
+              const otherId = activeChat.ParticipantIds?.find((id: string) => id !== currentUserId) || activeChat.LessorId || activeChat.lessorId || activeChat.LesseeId || activeChat.lesseeId;
+              if (otherId) router.push(`/public-profile/${otherId}` as any);
+            }}>
               <Text style={styles.chatHeaderName}>{getOtherPersonName(activeChat)}</Text>
               <Text style={styles.chatHeaderStatus}>
                 {connection ? "Đã kết nối" : "Đang kết nối..."}
               </Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            {isLessor && (
-              <TouchableOpacity
-                onPress={() => setShowContractOptions(true)}
-                style={{ padding: 8, backgroundColor: '#00A67E', borderRadius: 8 }}
-              >
-                <Feather name="file-text" size={20} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', paddingRight: 8 }}>
+              <TouchableOpacity onPress={() => setShowRequestPopup(true)} style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, marginRight: 8 }}>
+                <Feather name="info" size={20} color="#fff" />
               </TouchableOpacity>
-            )}
+              {!isLessor && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const targetListingId = listingId || activeChat?.listingId || activeChat?.ListingId;
+                    if (targetListingId) {
+                      router.push(`/listing/${targetListingId}?openBooking=true` as any);
+                    } else {
+                      Alert.alert("Lỗi", "Không tìm thấy thông tin mặt bằng. Vui lòng quay lại trang chi tiết mặt bằng để tạo yêu cầu.");
+                    }
+                  }}
+                  style={{ padding: 8, backgroundColor: '#3b82f6', borderRadius: 8, marginRight: 8 }}
+                >
+                  <Feather name="clipboard" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
+              {isLessor && (
+                <TouchableOpacity
+                  onPress={() => setShowContractOptions(true)}
+                  style={{ padding: 8, backgroundColor: '#00A67E', borderRadius: 8 }}
+                >
+                  <Feather name="file-text" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+          
+          {showRequestPopup && (
+            <View style={{ padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', maxHeight: 200 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#1E293B' }}>Yêu cầu thuê liên quan</Text>
+                <TouchableOpacity onPress={() => setShowRequestPopup(false)}>
+                  <Feather name="x" size={20} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+              {relatedRequests.length === 0 ? (
+                <Text style={{ color: '#64748B', textAlign: 'center' }}>Không có yêu cầu thuê nào.</Text>
+              ) : (
+                <FlatList
+                  data={relatedRequests}
+                  keyExtractor={item => item.id?.toString()}
+                  renderItem={({ item }) => (
+                    <View style={{ padding: 12, backgroundColor: '#F8FAFC', borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                      <Text style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: 4 }}>Mã yêu cầu: #{item.id}</Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>Tin đăng: {item.listingName}</Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>Mặt bằng: {item.spaceName}</Text>
+                      <Text style={{ color: '#10B981', fontWeight: 'bold' }}>Trạng thái: {item.status === 2 ? 'Đã duyệt' : 'Chờ duyệt'}</Text>
+                    </View>
+                  )}
+                />
+              )}
+            </View>
+          )}
 
           <FlatList
             ref={flatListRef}
@@ -341,7 +505,21 @@ export default function ChatScreen() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
+              const isOnlyNumber = /^\d+$/.test(item.text.trim());
+              const isSystemMessage = isOnlyNumber || item.text.includes('Tôi vừa tạo và gửi một Hợp đồng') || item.text.includes('Chủ mặt bằng đã xác nhận hợp đồng') || item.text.includes('Hợp đồng (Mã:');
               const isMe = String(item.senderId) === String(currentUserId);
+              
+              if (isSystemMessage) {
+                return (
+                  <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                    <View style={{ backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, maxWidth: '80%' }}>
+                      {renderMessageContent(item.text, false)}
+                    </View>
+                    <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{item.time}</Text>
+                  </View>
+                );
+              }
+
               return (
                 <View style={[styles.messageWrapper, isMe ? styles.messageMe : styles.messageOther]}>
                   <View style={[styles.messageBubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
@@ -470,5 +648,19 @@ const styles = StyleSheet.create({
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' },
 
   contractBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, marginTop: 8, alignSelf: 'flex-start' },
-  contractBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 6 }
+  contractBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 6 },
+  unreadBadge: {
+    backgroundColor: '#ff3b30',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 });

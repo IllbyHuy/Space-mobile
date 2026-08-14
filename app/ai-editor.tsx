@@ -161,7 +161,7 @@ export default function AiEditorScreen() {
     try {
       setIsProcessing(true);
       // Capture the masked image (base64)
-      const base64MaskedImage = await viewShotRef.current?.capture();
+      const base64MaskedImage = await viewShotRef.current?.capture?.();
       if (!base64MaskedImage) throw new Error('Không thể chụp ảnh khoanh vùng.');
       
       const payload = {
