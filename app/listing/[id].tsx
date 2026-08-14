@@ -36,7 +36,19 @@ const DAY_LABELS: Record<number, string> = {
   6: "Thứ 7",
 };
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const formatTime = (t: string) => (t ? t.substring(0, 5) : "");
+const formatTime = (timeString: string) => {
+  if (!timeString) return "";
+  const parts = timeString.split(":");
+  if (parts.length >= 2) {
+    let hours = parseInt(parts[0], 10);
+    const minutes = parts[1];
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    return `${hours}:${minutes} ${ampm}`;
+  }
+  return timeString;
+};
 
 const getPicUrl = (pic: any) => {
   if (!pic) return FALLBACK_IMAGE;
@@ -62,6 +74,7 @@ export default function ListingDetailScreen() {
   const [bookingPurpose, setBookingPurpose] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
   // Default to tomorrow to pass backend validation
   const [bookingStartDate, setBookingStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -487,10 +500,20 @@ export default function ListingDetailScreen() {
           {/* 5. MÔ TẢ */}
           <View style={styles.descSection}>
             <Text style={styles.sectionTitle}>Thông tin mô tả</Text>
-            <Text style={styles.description}>
+            <Text 
+              style={styles.description}
+              numberOfLines={isDescExpanded ? undefined : 4}
+            >
               {listing.description ||
                 "Chủ nhà chưa cung cấp mô tả chi tiết cho mặt bằng này."}
             </Text>
+            {listing.description && listing.description.length > 150 && (
+              <TouchableOpacity onPress={() => setIsDescExpanded(!isDescExpanded)}>
+                <Text style={{ color: "#00A67E", marginTop: 4, fontWeight: "500" }}>
+                  {isDescExpanded ? "Thu gọn" : "Xem chi tiết"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* 6. TIỆN ÍCH */}
