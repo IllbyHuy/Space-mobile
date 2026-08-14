@@ -928,12 +928,7 @@ export default function CreateListingScreen() {
             justifyContent: 'space-between'
           }}
           onPress={() => {
-            if (Platform.OS === 'web') {
-              window.open('/ai-image-editor', '_blank');
-            } else {
-              // Localhost URL usually requires actual IP on real devices, but let's assume it works for demo
-              Linking.openURL('http://localhost:5173/ai-image-editor');
-            }
+            router.push('/ai-editor' as any);
           }}
         >
           <View style={{ flex: 1, paddingRight: 10 }}>

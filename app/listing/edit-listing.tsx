@@ -813,11 +813,7 @@ export default function EditListingScreen() {
               justifyContent: 'space-between'
             }}
             onPress={() => {
-              if (Platform.OS === 'web') {
-                window.open('/ai-image-editor', '_blank');
-              } else {
-                Linking.openURL('http://localhost:5173/ai-image-editor');
-              }
+              router.push('/ai-editor' as any);
             }}
           >
             <View style={{ flex: 1, paddingRight: 10 }}>

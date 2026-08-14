@@ -57,8 +57,14 @@ const getPicUrl = (pic: any) => {
 };
 
 export default function ListingDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, openBooking } = useLocalSearchParams();
   const router = useRouter();
+  
+  useEffect(() => {
+    if (openBooking === 'true') {
+      setIsBookingModalOpen(true);
+    }
+  }, [openBooking]);
   const insets = useSafeAreaInsets();
 
   const [listing, setListing] = useState<any>(null);
@@ -354,7 +360,7 @@ export default function ListingDetailScreen() {
         if (res.ok) {
           const conv = await res.json();
           if (conv && (conv.id || conv.Id)) {
-            router.push({ pathname: '/chat', params: { conversationId: conv.id || conv.Id } });
+            router.push({ pathname: '/chat', params: { conversationId: conv.id || conv.Id, listingId: listing?.id || listing?.Id } });
             return;
           }
         }
@@ -479,7 +485,13 @@ export default function ListingDetailScreen() {
 
           {/* 4. CHỦ NHÀ */}
           {!isOwner && (
-            <View style={styles.hostSection}>
+            <TouchableOpacity 
+              style={styles.hostSection}
+              onPress={() => {
+                const uId = listing.creatorId || listing.CreatorId;
+                if (uId) router.push(`/public-profile/${uId}` as any);
+              }}
+            >
               <View style={styles.hostAvatar}>
                 <Text style={styles.hostAvatarText}>
                   {(listing.lessorName || "CH").substring(0, 2).toUpperCase()}
@@ -494,7 +506,7 @@ export default function ListingDetailScreen() {
               <TouchableOpacity style={styles.chatIconBtn} onPress={handleContactPress}>
                 <Feather name="message-circle" size={20} color="#00A67E" />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* 5. MÔ TẢ */}
@@ -740,9 +752,14 @@ export default function ListingDetailScreen() {
                 </Text>
               </Text>
             </View>
-            <TouchableOpacity style={styles.bookBtn} onPress={handleContactPress}>
-              <Text style={styles.bookBtnText}>Liên hệ / Gửi yêu cầu</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, flex: 1.5 }}>
+              <TouchableOpacity style={[styles.bookBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={handleContactPress}>
+                <Text style={[styles.bookBtnText, { color: '#00A67E' }]}>Chat ngay</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bookBtn, { flex: 1 }]} onPress={() => setIsBookingModalOpen(true)}>
+                <Text style={styles.bookBtnText}>Yêu cầu</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
       })()}
