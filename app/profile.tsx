@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert, DeviceEventEmitter } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,6 +67,7 @@ export default function ProfileScreen() {
 
   const handleLogout = async () => {
     await AsyncStorage.multiRemove(['portal_token', 'current_user_id']);
+    DeviceEventEmitter.emit('auth_changed');
     router.replace('/login');
   };
 

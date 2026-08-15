@@ -32,7 +32,7 @@ const getNextMonthDate = () => {
 
 const getValidDaysOfWeek = (validFrom?: string, validTo?: string) => {
   if (!validFrom || !validTo) return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  
+
   const parseDate = (dStr: string) => {
     const parts = dStr.split('-');
     if (parts.length === 3) {
@@ -259,7 +259,7 @@ export default function CreateListingScreen() {
   const [availabilities, setAvailabilities] = useState<any[]>([
     { daysOfWeek: [], specificdate: '', startTime: '08:00', endTime: '12:00', validFrom: getSafeDateOnly(), validTo: getSafeDateOnly() }
   ]);
-  
+
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const DAYS_LABEL_VI: Record<string, string> = {
     Monday: 'T2', Tuesday: 'T3', Wednesday: 'T4', Thursday: 'T5',
@@ -325,16 +325,16 @@ export default function CreateListingScreen() {
             const activePrio = pList.filter((p: any) => p.isActive);
             setPriorityLevels(activePrio);
             if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
-          } catch(e) {}
+          } catch (e) { }
         }
-        
+
         const walletRes = await fetch(`${API_BASE}/api/WalletAccount/GetByUserId?userId=${currentUserId}`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
         if (walletRes.ok) {
           try {
             const text = await walletRes.text();
             const wData = text ? JSON.parse(text) : {};
             setWalletBalance(wData.balance || 0);
-          } catch(e) {}
+          } catch (e) { }
         }
 
         const res = await fetch(
@@ -347,10 +347,10 @@ export default function CreateListingScreen() {
             const text = await res.text();
             const data = text ? JSON.parse(text) : [];
             spaces = Array.isArray(data) ? data : data?.data || [];
-          } catch(e) {}
-          
+          } catch (e) { }
+
           let allSpacesAndParts: any[] = [];
-          
+
           for (const space of spaces) {
             allSpacesAndParts.push({ ...space, isPart: false });
             try {
@@ -365,13 +365,13 @@ export default function CreateListingScreen() {
                   parts.forEach((p: any) => {
                     allSpacesAndParts.push({ ...p, isPart: true, parentName: space.name });
                   });
-                } catch(e) {}
+                } catch (e) { }
               }
             } catch (err) {
               console.error("Lỗi lấy space part", err);
             }
           }
-          
+
           try {
             const usageRes = await fetch(`${API_BASE}/api/SpaceUsageRight/Mine`, {
               headers: { 'Authorization': `Bearer ${token}`, 'accept': '*/*' }
@@ -394,7 +394,7 @@ export default function CreateListingScreen() {
                     allSpacesAndParts.push({ ...space, isPart: false });
                   }
                 }
-              } catch(e) {}
+              } catch (e) { }
             }
           } catch (e) {
             console.error("Lỗi lấy quyền sử dụng mặt bằng", e);
@@ -404,15 +404,15 @@ export default function CreateListingScreen() {
 
           const ownerIds = Array.from(new Set(allSpacesAndParts.map(s => s.ownerId || s.OwnerId || s.userId || s.UserId).filter(Boolean)));
           const ownerPromises = ownerIds.map(async (id: any) => {
-              try {
-                  const resp = await fetch(`${API_BASE}/api/User/${id}`, { headers: { 'Authorization': `Bearer ${token}` }});
-                  if (resp.ok) {
-                      const text = await resp.text();
-                      const data = text ? JSON.parse(text) : {};
-                      return { id, name: data.profileFullName || data.userName || data.email || 'Unknown' };
-                  }
-              } catch {}
-              return { id, name: 'Unknown' };
+            try {
+              const resp = await fetch(`${API_BASE}/api/User/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+              if (resp.ok) {
+                const text = await resp.text();
+                const data = text ? JSON.parse(text) : {};
+                return { id, name: data.profileFullName || data.userName || data.email || 'Unknown' };
+              }
+            } catch { }
+            return { id, name: 'Unknown' };
           });
           const resolvedOwners = await Promise.all(ownerPromises);
           const ownerMap: Record<string, string> = {};
@@ -457,7 +457,8 @@ export default function CreateListingScreen() {
         "Chọn nguồn ảnh",
         [
           { text: "Hủy", style: "cancel" },
-          { text: "Chụp ảnh", onPress: async () => {
+          {
+            text: "Chụp ảnh", onPress: async () => {
               const { status } = await ImagePicker.requestCameraPermissionsAsync();
               if (status !== 'granted') {
                 Alert.alert("Lỗi", "Cần cấp quyền camera để chụp ảnh!");
@@ -473,7 +474,8 @@ export default function CreateListingScreen() {
               }
             }
           },
-          { text: "Chọn từ thư viện", onPress: async () => {
+          {
+            text: "Chọn từ thư viện", onPress: async () => {
               let result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsMultipleSelection: true,
@@ -658,7 +660,7 @@ export default function CreateListingScreen() {
           } else {
             errMsg = parsed.message || parsed.title || parsed.detail || errMsg;
           }
-        } catch {}
+        } catch { }
         throw new Error(errMsg);
       }
 
@@ -757,7 +759,7 @@ export default function CreateListingScreen() {
           >
             <Text style={selectedSpace ? styles.pickerText : styles.pickerPlaceholder}>
               {selectedSpace ? (
-                  `${selectedSpace.isPart ? `${selectedSpace.name} (Thuộc: ${selectedSpace.parentName})` : selectedSpace.name} (Chủ: ${ownerNames[selectedSpace.ownerId || selectedSpace.OwnerId || selectedSpace.userId || selectedSpace.UserId] || '...'})`
+                `${selectedSpace.isPart ? `${selectedSpace.name} (Thuộc: ${selectedSpace.parentName})` : selectedSpace.name} (Chủ: ${ownerNames[selectedSpace.ownerId || selectedSpace.OwnerId || selectedSpace.userId || selectedSpace.UserId] || '...'})`
               ) : '-- Chọn mặt bằng --'}
             </Text>
             <Feather name="chevron-down" size={18} color="#6B7280" />
@@ -802,6 +804,34 @@ export default function CreateListingScreen() {
           </View>
         </View>
 
+        {/* Thời gian hiệu lực */}
+        <Text style={styles.sectionTitle}>Thời gian hiệu lực</Text>
+
+        <View style={styles.row}>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <DateField
+              label="Từ ngày"
+              value={allowedStartTime}
+              disabled={!!(timePolicy && timePolicy.allowedStartTime)}
+              onChange={setAllowedStartTime}
+            />
+          </View>
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <DateField
+              label="Đến ngày"
+              value={allowedEndTime}
+              minDate={allowedStartTime}
+              disabled={!!(timePolicy && timePolicy.allowedEndTime)}
+              onChange={setAllowedEndTime}
+            />
+          </View>
+        </View>
+        {listingType === 1 && timePolicy && timePolicy.message && (
+          <Text style={{ fontSize: 13, color: '#059669', fontStyle: 'italic', marginBottom: 10 }}>
+            * {timePolicy.message}
+          </Text>
+        )}
+
         {listingType === 1 && (
           <View>
             <View style={styles.inputGroup}>
@@ -809,7 +839,8 @@ export default function CreateListingScreen() {
               <TextInput style={styles.input} keyboardType="numeric" value={maxRenters} onChangeText={setMaxRenters} placeholder="VD: 5" />
             </View>
 
-            <CustomCheckbox label="Cam kết pháp lý *" value={isLegalCommitted} onValueChange={setIsLegalCommitted} />
+            <CustomCheckbox label="Tôi cam kết khoảng thời gian được chia sẻ hoàn toàn dựa trên cơ sở pháp lý và quy định của hợp đồng. *
+" value={isLegalCommitted} onValueChange={setIsLegalCommitted} />
 
             <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Khung giờ chia sẻ</Text>
             {availabilities.map((slot, index) => (
@@ -977,33 +1008,7 @@ export default function CreateListingScreen() {
           </ScrollView>
         </View>
 
-        {/* Thời gian hiệu lực */}
-        <Text style={styles.sectionTitle}>Thời gian hiệu lực</Text>
 
-        <View style={styles.row}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <DateField
-              label="Từ ngày"
-              value={allowedStartTime}
-              disabled={!!(timePolicy && timePolicy.allowedStartTime)}
-              onChange={setAllowedStartTime}
-            />
-          </View>
-          <View style={{ flex: 1, marginLeft: 8 }}>
-            <DateField
-              label="Đến ngày"
-              value={allowedEndTime}
-              minDate={allowedStartTime}
-              disabled={!!(timePolicy && timePolicy.allowedEndTime)}
-              onChange={setAllowedEndTime}
-            />
-          </View>
-        </View>
-        {listingType === 1 && timePolicy && timePolicy.message && (
-          <Text style={{ fontSize: 13, color: '#059669', fontStyle: 'italic', marginBottom: 10 }}>
-            * {timePolicy.message}
-          </Text>
-        )}
 
         {/* Banner Quảng Cáo AI Image Editor */}
         <TouchableOpacity

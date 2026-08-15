@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   SafeAreaView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
   Animated, LayoutAnimation, UIManager,
-  ScrollView
+  ScrollView, DeviceEventEmitter
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -168,6 +168,8 @@ export default function AuthScreen() {
 
         // Đăng ký push token ngay sau khi login thành công
         forceRegisterAndSavePushToken();
+
+        DeviceEventEmitter.emit('auth_changed');
 
         // BỎ ALERT ĐI, ĐÁ THẲNG VÀO TRANG CHỦ LUÔN!
         router.replace('/');
