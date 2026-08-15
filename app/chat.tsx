@@ -319,19 +319,20 @@ export default function ChatScreen() {
           if (reqRes1.ok || reqRes2.ok) {
             const data1 = reqRes1.ok ? await reqRes1.json() : [];
             const data2 = reqRes2.ok ? await reqRes2.json() : [];
-            const safeData = [...(Array.isArray(data1) ? data1 : data1?.data || []), ...(Array.isArray(data2) ? data2 : data2?.data || [])];
+            const safeData = [...(Array.isArray(data1) ? data1 : data1?.data || data1?.items || []), ...(Array.isArray(data2) ? data2 : data2?.data || data2?.items || [])];
             
             const spaceData = spaceRes.ok ? await spaceRes.json() : [];
             const listingData = listingRes.ok ? await listingRes.json() : [];
-            const spaces = Array.isArray(spaceData) ? spaceData : spaceData?.data || [];
-            const listings = Array.isArray(listingData) ? listingData : listingData?.data || [];
+            const spaces = Array.isArray(spaceData) ? spaceData : spaceData?.data || spaceData?.items || [];
+            const listings = Array.isArray(listingData) ? listingData : listingData?.data || listingData?.items || [];
             
             const reqs = safeData.filter((r: any) => 
-              (String(r.lessorId) === String(currentUserId) && String(r.lesseeId) === String(otherId)) ||
-              (String(r.lessorId) === String(otherId) && String(r.lesseeId) === String(currentUserId))
+              r.spaceId && r.listingId &&
+              ((String(r.lessorId) === String(currentUserId) && String(r.lesseeId) === String(otherId)) ||
+               (String(r.lessorId) === String(otherId) && String(r.lesseeId) === String(currentUserId)))
             ).map((r: any) => {
-              const space = spaces.find((s: any) => s.id === r.spaceId || s.Id === r.spaceId);
-              const listing = listings.find((l: any) => l.id === r.listingId || l.Id === r.listingId);
+              const space = spaces.find((s: any) => String(s.id || s.Id) === String(r.spaceId));
+              const listing = listings.find((l: any) => String(l.id || l.Id) === String(r.listingId));
               return {
                 ...r,
                 spaceName: space?.name || space?.Name || 'Không xác định',

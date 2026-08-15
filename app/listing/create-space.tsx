@@ -104,14 +104,62 @@ export default function CreateSpaceScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setSelectedImages((prev) => [...prev, ...result.assets]);
+    if (Platform.OS === 'web') {
+      const useCamera = window.confirm("Bạn muốn chụp ảnh mới? (OK = Chụp ảnh, Cancel = Chọn từ thư viện)");
+      if (useCamera) {
+        let result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setSelectedImages((prev) => [...prev, ...result.assets]);
+        }
+      } else {
+        let result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsMultipleSelection: true,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setSelectedImages((prev) => [...prev, ...result.assets]);
+        }
+      }
+    } else {
+      Alert.alert(
+        "Thêm ảnh",
+        "Chọn nguồn ảnh",
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Chụp ảnh", onPress: async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert("Lỗi", "Cần cấp quyền camera để chụp ảnh!");
+                return;
+              }
+              let result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setSelectedImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          },
+          { text: "Chọn từ thư viện", onPress: async () => {
+              let result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setSelectedImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          }
+        ]
+      );
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Image, Alert, Platform } from 'react-native';
 import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -80,11 +80,9 @@ export default function MyListingsScreen() {
           } catch(e) {}
         }));
 
-        // STEP 3: Filter by spaceId match (same logic as web)
+        // STEP 3: Filter by creator match (same logic as web OwnerListings)
         const myListings = allListings.filter((l: any) => {
-          const spId = l.spaceId || l.SpaceId;
-          return mySpaceIds.includes(spId) ||
-            String(l.ownerId || '') === String(currentUserId) ||
+          return String(l.ownerId || '') === String(currentUserId) ||
             String(l.creatorId || '') === String(currentUserId) ||
             String(l.createdBy || '') === String(currentUserId);
         }).map((item: any) => {
@@ -102,6 +100,58 @@ export default function MyListingsScreen() {
       console.error("Lỗi tải danh sách tin đăng:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDelete = (id: number) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm("Bạn có chắc chắn muốn xóa tin đăng này không? Hành động này không thể hoàn tác.")) {
+        executeDelete(id);
+      }
+    } else {
+      Alert.alert(
+        "Xác nhận xóa",
+        "Bạn có chắc chắn muốn xóa tin đăng này không? Hành động này không thể hoàn tác.",
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Xóa", style: "destructive", onPress: () => executeDelete(id) }
+        ]
+      );
+    }
+  };
+
+  const executeDelete = async (id: number) => {
+    try {
+      // Use SoftDelete instead of Delete to avoid foreign key constraint errors
+      // if the listing has booking requests or other related data.
+      const res = await fetch(`${API_BASE}/api/Listing/SoftDelete/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'accept': '*/*'
+        }
+      });
+      if (res.ok) {
+        if (Platform.OS === 'web') {
+          alert("Đã xóa tin đăng thành công.");
+        } else {
+          Alert.alert("Thành công", "Đã xóa tin đăng.");
+        }
+        fetchListings(); // reload list
+      } else {
+        const err = await res.text();
+        if (Platform.OS === 'web') {
+          alert("Lỗi: Không thể xóa tin đăng: " + err);
+        } else {
+          Alert.alert("Lỗi", "Không thể xóa tin đăng: " + err);
+        }
+      }
+    } catch (e: any) {
+      if (Platform.OS === 'web') {
+        alert("Lỗi: Đã có lỗi xảy ra khi xóa.");
+      } else {
+        Alert.alert("Lỗi", "Đã có lỗi xảy ra khi xóa.");
+      }
     }
   };
 
@@ -148,6 +198,9 @@ export default function MyListingsScreen() {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push(`/listing/edit-listing?id=${item.id || item.Id}`)}>
               <Feather name="edit" size={20} color="#00A67E" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(item.id || item.Id)}>
+              <Feather name="trash-2" size={20} color="#EF4444" />
             </TouchableOpacity>
           </View>
         </View>
