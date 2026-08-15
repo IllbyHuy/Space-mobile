@@ -545,7 +545,7 @@ export default function ChatScreen() {
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const isOnlyNumber = /^\d+$/.test(item.text.trim());
-              const isSystemMessage = isOnlyNumber || item.text.includes('Tôi vừa tạo và gửi một Hợp đồng') || item.text.includes('Chủ mặt bằng đã xác nhận hợp đồng') || item.text.includes('Hợp đồng (Mã:');
+              const isSystemMessage = isOnlyNumber || item.text.includes('Tôi vừa tạo và gửi một Hợp đồng') || item.text.includes('Chủ mặt bằng đã xác nhận hợp đồng') || item.text.includes('Khách thuê đã ký') || item.text.includes('thu hồi Hợp đồng') || item.text.includes('vừa cập nhật Hợp đồng') || item.text.includes('[HỢP ĐỒNG MỚI]') || item.text.includes('Hợp đồng ngoài hệ thống đã được cả hai bên xác nhận và kích hoạt') || item.text.includes('Hợp đồng (Mã:');
               const isMe = String(item.senderId) === String(currentUserId);
               
               if (isSystemMessage) {
