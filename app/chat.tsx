@@ -522,7 +522,6 @@ export default function ChatScreen() {
                       <Text style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: 4 }}>Mã yêu cầu: #{item.id}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Tin đăng: {item.listingName}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Mặt bằng: {item.spaceName}</Text>
-                      <Text style={{ color: '#10B981', fontWeight: 'bold' }}>Trạng thái: {item.status === 2 ? 'Đã duyệt' : 'Chờ duyệt'}</Text>
                     </View>
                   )}
                 />

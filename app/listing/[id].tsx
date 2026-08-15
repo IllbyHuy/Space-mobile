@@ -629,13 +629,7 @@ export default function ListingDetailScreen() {
                   {listing.price ? `${listing.price.toLocaleString('vi-VN')} ₫/${listing.priceUnit ? getPriceUnitText(listing.priceUnit) : (isHourly ? "giờ" : "tháng")}` : 'N/A'}
                 </Text>
               </View>
-              <View>
-                <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Biến động trong 1 tháng</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Feather name="trending-up" size={16} color="#00A67E" />
-                  <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#333' }}>0% (Giữ giá)</Text>
-                </View>
-              </View>
+
               <View>
                 <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Đánh giá thị trường</Text>
                 <Text style={{ fontSize: 14, color: '#333', fontWeight: '500' }}>⭐ Giá phổ biến khu vực</Text>
