@@ -186,16 +186,35 @@ export default function ChatScreen() {
 
           const currentActive = activeChatRef.current;
           if (currentActive && (currentActive.id === incomingRoomId || currentActive.conversationId === incomingRoomId)) {
+            // Đang mở phòng chat này, báo đã xem
+            globalConnection.invoke("MarkConversationAsRead", incomingRoomId, currentUserId).catch(err => console.log(err));
+
             setChatHistory(prev => {
               if (prev.some(m => m.id === savedMessage.id)) return prev;
               return [...prev, {
                 id: savedMessage.id || Date.now(),
                 senderId: savedMessage.senderId,
                 text: savedMessage.content || savedMessage.message,
-                time: ((d) => `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`)(new Date(savedMessage.createdAt || new Date()))
+                time: ((d) => `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`)(new Date(savedMessage.createdAt || new Date())),
+                isRead: savedMessage.isRead || false
               }];
             });
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+          }
+        });
+
+        globalConnection.on("ReceiveReadReceipt", (receipt: any) => {
+          const currentActive = activeChatRef.current;
+          if (currentActive && (currentActive.id === receipt.conversationId || currentActive.conversationId === receipt.conversationId)) {
+            // Nếu người kia đọc, cập nhật tin nhắn của mình thành đã xem
+            if (String(receipt.userId) !== String(currentUserId)) {
+              setChatHistory(prev => prev.map(m => {
+                if (String(m.senderId) === String(currentUserId)) {
+                  return { ...m, isRead: true };
+                }
+                return m;
+              }));
+            }
           }
         });
 
@@ -232,7 +251,20 @@ export default function ChatScreen() {
     const roomId = roomData.conversationId || roomData.id || roomData.Id;
     if (connectionRef.current) {
       connectionRef.current.invoke("JoinConversation", roomId).catch(err => console.log(err));
+      // Báo đã xem khi mở phòng
+      connectionRef.current.invoke("MarkConversationAsRead", roomId, currentUserId).catch(err => console.log(err));
     }
+    
+    // Cập nhật local state unreadCount về 0
+    setConversations(prev => {
+      const idx = prev.findIndex(c => String(c.id) === String(roomId) || String(c.Id) === String(roomId));
+      if (idx > -1) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], unreadCount: 0, UnreadCount: 0 };
+        return updated;
+      }
+      return prev;
+    });
 
     try {
       const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Message/GetMessageHistory?conversationId=${roomId}&limit=50&t=${Date.now()}`, {
@@ -249,7 +281,8 @@ export default function ChatScreen() {
           const d = new Date(msg.createdAt || msg.sentAt || new Date());
           return {
             id: msg.id, senderId: msg.senderId, text: msg.content || msg.message || '', 
-            time: `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
+            time: `${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`,
+            isRead: msg.isRead
           };
         });
         setChatHistory(mappedHistory);
@@ -525,7 +558,12 @@ export default function ChatScreen() {
                   <View style={[styles.messageBubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
                     {renderMessageContent(item.text, isMe)}
                   </View>
-                  <Text style={styles.messageTime}>{item.time}</Text>
+                  <Text style={styles.messageTime}>
+                    {item.time}
+                    {isMe && item.isRead && (
+                      <Text style={{ color: '#10B981', fontWeight: 'bold' }}>  ✓ Đã xem</Text>
+                    )}
+                  </Text>
                 </View>
               );
             }}
