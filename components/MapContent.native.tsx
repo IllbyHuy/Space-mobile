@@ -27,37 +27,45 @@ export function MapContent({ listings }: Props) {
         longitudeDelta: 0.05,
       }}
     >
-      {listings.map((p, index) => (
-        <Marker
-          key={p.id || p.Id || index}
-          coordinate={{ latitude: p.lat, longitude: p.lng }}
-          pinColor="#E03C31"
-        >
-          <Callout tooltip onPress={() => router.push(`/listing/${p.id || p.Id}`)}>
-            <View style={styles.calloutContainer}>
-              <View style={styles.calloutImageWrapper}>
-                <Image
-                  source={{ uri: p.listingPictures?.[0] ? getUrl(p.listingPictures[0]) : getUrl(null) }}
-                  style={styles.calloutImage}
-                  resizeMode="cover"
-                />
-              </View>
+      {listings.map((p, index) => {
+        let unitDisplay = 'Giờ';
+        if (p.priceUnit === 'PerDay') unitDisplay = 'Ngày';
+        else if (p.priceUnit === 'PerWeek') unitDisplay = 'Tuần';
+        else if (p.priceUnit === 'PerMonth') unitDisplay = 'Tháng';
+        else if (p.priceUnit === 'PerYear') unitDisplay = 'Năm';
 
-              <View style={styles.calloutInfo}>
-                <Text style={styles.calloutPrice}>
-                  {p.price ? `${p.price.toLocaleString('vi-VN')} đ/h` : 'Thỏa thuận'}
-                </Text>
-                <Text style={styles.calloutName} numberOfLines={2}>
-                  {p.name || p.description || 'Mặt bằng cho thuê'}
-                </Text>
-                <Text style={styles.calloutSub}>
-                  {p.area ? `${p.area} m²` : 'N/A'} • {p.location?.substring(0, 20) || 'TP.HCM'}
-                </Text>
+        return (
+          <Marker
+            key={p.id || p.Id || index}
+            coordinate={{ latitude: p.lat, longitude: p.lng }}
+            pinColor="#E03C31"
+          >
+            <Callout tooltip onPress={() => router.push(`/listing/${p.id || p.Id}`)}>
+              <View style={styles.calloutContainer}>
+                <View style={styles.calloutImageWrapper}>
+                  <Image
+                    source={{ uri: p.listingPictures?.[0] ? getUrl(p.listingPictures[0]) : getUrl(null) }}
+                    style={styles.calloutImage}
+                    resizeMode="cover"
+                  />
+                </View>
+
+                <View style={styles.calloutInfo}>
+                  <Text style={styles.calloutPrice}>
+                    {p.price ? `${p.price.toLocaleString('vi-VN')} đ/${unitDisplay}` : 'Thỏa thuận'}
+                  </Text>
+                  <Text style={styles.calloutName} numberOfLines={2}>
+                    {p.name || p.description || 'Mặt bằng cho thuê'}
+                  </Text>
+                  <Text style={styles.calloutSub}>
+                    {p.area ? `${p.area} m² • ` : ''}{(p.spaceCity || p.spaceAddress || 'TP.HCM').substring(0, 30)}
+                  </Text>
+                </View>
               </View>
-            </View>
-          </Callout>
-        </Marker>
-      ))}
+            </Callout>
+          </Marker>
+        );
+      })}
     </MapView>
   );
 }
