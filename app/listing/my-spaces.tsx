@@ -106,11 +106,38 @@ export default function MySpacesScreen() {
                 : 'Không có thông tin'}
             </Text>
             <Text style={styles.expandedLabel}>Giờ hoạt động:</Text>
-            <Text style={styles.expandedText}>
-              {item.operatingHours && item.operatingHours.length > 0
-                ? `${item.operatingHours.length} ngày trong tuần`
-                : 'Không có thông tin'}
-            </Text>
+            {item.operatingHours && item.operatingHours.length > 0 ? (
+              <View style={{ marginBottom: 12 }}>
+                {item.operatingHours.slice(0, 2).map((h: any, idx: number) => {
+                  const day = h.dayOfWeek !== undefined ? h.dayOfWeek : h.DayOfWeek;
+                  const dStr = day === 0 ? 'CN' : `T${day + 1}`;
+                  const open = h.openTime || h.OpenTime;
+                  const close = h.closeTime || h.CloseTime;
+                  return (
+                    <Text key={idx} style={{ marginBottom: 2, fontSize: 13, color: '#4B5563' }}>
+                      {dStr}: {open?.substring(0,5)} - {close?.substring(0,5)}
+                    </Text>
+                  );
+                })}
+                {item.operatingHours.length > 2 && (
+                  <TouchableOpacity onPress={() => {
+                    const hoursText = item.operatingHours.map((h: any) => {
+                      const day = h.dayOfWeek !== undefined ? h.dayOfWeek : h.DayOfWeek;
+                      const dStr = day === 0 ? 'CN' : `T${day + 1}`;
+                      const open = h.openTime || h.OpenTime;
+                      const close = h.closeTime || h.CloseTime;
+                      return `${dStr}: ${open?.substring(0,5)} - ${close?.substring(0,5)}`;
+                    }).join('\n');
+                    Alert.alert('Giờ hoạt động', hoursText);
+                  }} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                    <Feather name="eye" size={14} color="#00A67E" />
+                    <Text style={{ color: '#00A67E', fontSize: 13, marginLeft: 4 }}>Xem chi tiết {item.operatingHours.length} ngày</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.expandedText}>Không có thông tin</Text>
+            )}
 
             <View style={styles.actionsRow}>
               <TouchableOpacity 
@@ -134,10 +161,17 @@ export default function MySpacesScreen() {
 
             <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: '#E0F2FE', marginTop: 12, width: '100%' }]}
-              onPress={() => router.push({
-                pathname: '/listing/space-parts',
-                params: { parentSpaceId: item.id || item.Id, parentSpaceName: item.name }
-              })}
+              onPress={() => {
+                const spaceOwnerId = String(item.ownerId || item.OwnerId || '');
+                if (spaceOwnerId && currentUserId !== spaceOwnerId) {
+                  Alert.alert('Lỗi', 'Bạn không có quyền chia nhỏ space được lấy từ người chủ');
+                  return;
+                }
+                router.push({
+                  pathname: '/listing/space-parts',
+                  params: { parentSpaceId: item.id || item.Id, parentSpaceName: item.name }
+                })
+              }}
             >
               <Feather name="grid" size={16} color="#0369A1" />
               <Text style={{ color: '#0369A1', fontWeight: 'bold', marginLeft: 6 }}>Quản lý không gian chia nhỏ</Text>
