@@ -523,6 +523,12 @@ export default function ChatScreen() {
                       <Text style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: 4 }}>Mã yêu cầu: #{item.id}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Tin đăng: {item.listingName}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Mặt bằng: {item.spaceName}</Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>
+                        Thời gian: {item.expectedStartDate ? new Date(item.expectedStartDate).toLocaleDateString('vi-VN') : '?'} - {item.expectedEndDate ? new Date(item.expectedEndDate).toLocaleDateString('vi-VN') : '?'}
+                      </Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>
+                        Giá đề xuất: {item.offeredPrice ? item.offeredPrice.toLocaleString('vi-VN') + ' VNĐ/tháng' : 'Thỏa thuận'}
+                      </Text>
                     </View>
                   )}
                 />
@@ -539,7 +545,7 @@ export default function ChatScreen() {
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const isOnlyNumber = /^\d+$/.test(item.text.trim());
-              const isSystemMessage = isOnlyNumber || item.text.includes('Tôi vừa tạo và gửi một Hợp đồng') || item.text.includes('Chủ mặt bằng đã xác nhận hợp đồng') || item.text.includes('Hợp đồng (Mã:');
+              const isSystemMessage = isOnlyNumber || item.text.includes('Tôi vừa tạo và gửi một Hợp đồng') || item.text.includes('Chủ mặt bằng đã xác nhận hợp đồng') || item.text.includes('Khách thuê đã ký') || item.text.includes('thu hồi Hợp đồng') || item.text.includes('vừa cập nhật Hợp đồng') || item.text.includes('[HỢP ĐỒNG MỚI]') || item.text.includes('Hợp đồng ngoài hệ thống đã được cả hai bên xác nhận và kích hoạt') || item.text.includes('Hợp đồng (Mã:');
               const isMe = String(item.senderId) === String(currentUserId);
               
               if (isSystemMessage) {
