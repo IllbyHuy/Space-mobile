@@ -126,43 +126,7 @@ const CustomCheckbox = ({ value, onValueChange, label }: any) => (
   </TouchableOpacity>
 );
 
-const TimeField = ({ label, value, onChange }: any) => {
-  const [show, setShow] = useState(false);
-  const dateObj = new Date();
-  try {
-    const [h, m] = value.split(':');
-    dateObj.setHours(parseInt(h), parseInt(m), 0, 0);
-  } catch(e) {}
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShow(Platform.OS === 'ios');
-    if (selectedDate) {
-      const hh = selectedDate.getHours().toString().padStart(2, '0');
-      const mm = selectedDate.getMinutes().toString().padStart(2, '0');
-      onChange(hh + ':' + mm);
-    }
-  };
-  return (
-    <View>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <TouchableOpacity style={styles.input} onPress={() => setShow(true)}>
-        <Text style={{ color: '#111827' }}>{value}</Text>
-      </TouchableOpacity>
-      {show && (
-        <DateTimePicker
-          value={dateObj}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onDateChange}
-        />
-      )}
-      {Platform.OS === 'ios' && show && (
-        <TouchableOpacity style={{ alignItems: 'center', padding: 8 }} onPress={() => setShow(false)}>
-          <Text style={{ color: '#00A67E', fontWeight: 'bold' }}>Xong</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-};
+
 
 function DateField({
   label,
@@ -466,14 +430,62 @@ export default function CreateListingScreen() {
   const selectedSpace = mySpaces.find(s => (s.id || s.Id) === spaceId);
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setSelectedImages((prev) => [...prev, ...result.assets]);
+    if (Platform.OS === 'web') {
+      const useCamera = window.confirm("Bạn muốn chụp ảnh mới? (OK = Chụp ảnh, Cancel = Chọn từ thư viện)");
+      if (useCamera) {
+        let result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setSelectedImages((prev) => [...prev, ...result.assets]);
+        }
+      } else {
+        let result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsMultipleSelection: true,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setSelectedImages((prev) => [...prev, ...result.assets]);
+        }
+      }
+    } else {
+      Alert.alert(
+        "Thêm ảnh",
+        "Chọn nguồn ảnh",
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Chụp ảnh", onPress: async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert("Lỗi", "Cần cấp quyền camera để chụp ảnh!");
+                return;
+              }
+              let result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setSelectedImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          },
+          { text: "Chọn từ thư viện", onPress: async () => {
+              let result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setSelectedImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -835,12 +847,42 @@ export default function CreateListingScreen() {
                   })}
                 </View>
 
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                  <View style={{ flex: 1 }}>
-                    <TimeField label="Giờ bắt đầu" value={slot.startTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, startTime: v } : s))} />
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.label, { marginBottom: 0 }]}>Từ:</Text>
+                    <TextInput
+                      style={{
+                        backgroundColor: '#fff',
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        borderRadius: 8,
+                        padding: 8,
+                        width: 65,
+                        textAlign: 'center',
+                        flex: 1
+                      }}
+                      value={slot.startTime}
+                      onChangeText={(v) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, startTime: v } : s))}
+                      placeholder="08:00"
+                    />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <TimeField label="Giờ kết thúc" value={slot.endTime} onChange={(v: string) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, endTime: v } : s))} />
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.label, { marginBottom: 0 }]}>Đến:</Text>
+                    <TextInput
+                      style={{
+                        backgroundColor: '#fff',
+                        borderWidth: 1,
+                        borderColor: '#D1D5DB',
+                        borderRadius: 8,
+                        padding: 8,
+                        width: 65,
+                        textAlign: 'center',
+                        flex: 1
+                      }}
+                      value={slot.endTime}
+                      onChangeText={(v) => setAvailabilities(prev => prev.map((s, i) => i === index ? { ...s, endTime: v } : s))}
+                      placeholder="12:00"
+                    />
                   </View>
                 </View>
 

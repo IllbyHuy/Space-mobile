@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  Modal,
+  TextInput,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -56,6 +58,11 @@ export default function BookingRequestsScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<{requestId: number, lesseeId: string} | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"Pending" | "Rejected" | "Approved">("Pending");
+
   useEffect(() => {
     const loadAuth = async () => {
       const tk = await AsyncStorage.getItem("portal_token");
@@ -70,14 +77,14 @@ export default function BookingRequestsScreen() {
     if (token && currentUserId) {
       fetchRequests();
     }
-  }, [token, currentUserId]);
+  }, [token, currentUserId, filterStatus]);
 
   const fetchRequests = async () => {
     setIsLoading(true);
     try {
       // GIỐNG WEB: fetch requests + spaces song song
       const [reqRes, spacesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=Pending`, {
+        fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=${filterStatus}`, {
           headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
         }),
         fetch(`${API_BASE}/api/Space/GetAll`, {
@@ -101,7 +108,16 @@ export default function BookingRequestsScreen() {
         const data = await reqRes.json();
         const safeData = Array.isArray(data) ? data : data?.data || data?.items || [];
         const myRequests = safeData.filter(
-          (req: any) => String(req.lessorId) === String(currentUserId),
+          (req: any) => {
+            const isLessor = String(req.lessorId) === String(currentUserId);
+            const isLessee = String(req.lesseeId || req.LesseeId) === String(currentUserId);
+            
+            if (filterStatus === "Rejected") {
+               return isLessor || isLessee;
+            } else {
+               return isLessor;
+            }
+          }
         );
         setRequests(myRequests);
 
@@ -143,7 +159,26 @@ export default function BookingRequestsScreen() {
     lesseeId: string,
   ) => {
     if (!requestId) return;
-    const actionLabel = newStatus === "Approved" ? "DUYỆT" : "TỪ CHỐI";
+
+    if (newStatus === "Rejected") {
+      if (Platform.OS === "web") {
+        const reason = window.prompt("Nhập lý do từ chối yêu cầu này:");
+        if (reason !== null) {
+          if (!reason.trim()) {
+            Alert.alert("Lỗi", "Lý do từ chối không được để trống!");
+            return;
+          }
+          updateStatusApi(requestId, newStatus, lesseeId, reason);
+        }
+        return;
+      }
+      setRejectTarget({ requestId, lesseeId });
+      setRejectReason("");
+      setRejectModalVisible(true);
+      return;
+    }
+
+    const actionLabel = "DUYỆT";
 
     if (Platform.OS === "web") {
       if (window.confirm(`Bạn có chắc muốn ${actionLabel} yêu cầu này?`)) {
@@ -160,7 +195,7 @@ export default function BookingRequestsScreen() {
         {
           text: "Đồng ý",
           onPress: () => updateStatusApi(requestId, newStatus, lesseeId),
-          style: newStatus === "Approved" ? "default" : "destructive",
+          style: "default",
         },
       ],
     );
@@ -170,8 +205,12 @@ export default function BookingRequestsScreen() {
     requestId: number,
     newStatus: "Approved" | "Rejected",
     lesseeId: string,
+    reason?: string
   ) => {
     try {
+      const body: any = { status: newStatus };
+      if (reason) body.cancelReason = reason;
+
       const res = await fetch(
         `${API_BASE}/api/PrimaryBookingRequest/Status/${requestId}`,
         {
@@ -180,12 +219,13 @@ export default function BookingRequestsScreen() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify(body),
         },
       );
 
       if (!res.ok) {
-        Alert.alert("Lỗi", "Lỗi khi cập nhật trạng thái đơn!");
+        const errText = await res.text().catch(() => '');
+        Alert.alert("Lỗi", `Lỗi khi cập nhật trạng thái đơn! ${res.status} ${errText}`);
         return;
       }
 
@@ -310,30 +350,41 @@ export default function BookingRequestsScreen() {
               </Text>
             </View>
           )}
+          {filterStatus === "Rejected" && !!item.cancelReason && (
+            <View style={styles.infoRow}>
+              <Feather name="alert-circle" size={14} color="#EF4444" />
+              <Text style={[styles.infoText, { color: "#EF4444" }]}>
+                <Text style={styles.bold}>Lý do từ chối: </Text>
+                {item.cancelReason}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Nút hành động */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.btn, styles.rejectBtn]}
-            onPress={() =>
-              handleUpdateStatus(item.id || item.Id, "Rejected", item.lesseeId || item.LesseeId)
-            }
-          >
-            <Feather name="x-circle" size={16} color="#EF4444" />
-            <Text style={styles.rejectBtnText}>Từ chối</Text>
-          </TouchableOpacity>
+        {filterStatus === "Pending" && String(item.lessorId) === String(currentUserId) && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.btn, styles.rejectBtn]}
+              onPress={() =>
+                handleUpdateStatus(item.id || item.Id, "Rejected", item.lesseeId || item.LesseeId)
+              }
+            >
+              <Feather name="x-circle" size={16} color="#EF4444" />
+              <Text style={styles.rejectBtnText}>Từ chối</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.btn, styles.approveBtn]}
-            onPress={() =>
-              handleUpdateStatus(item.id || item.Id, "Approved", item.lesseeId || item.LesseeId)
-            }
-          >
-            <Feather name="check-circle" size={16} color="#fff" />
-            <Text style={styles.approveBtnText}>Chấp nhận</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.btn, styles.approveBtn]}
+              onPress={() =>
+                handleUpdateStatus(item.id || item.Id, "Approved", item.lesseeId || item.LesseeId)
+              }
+            >
+              <Feather name="check-circle" size={16} color="#fff" />
+              <Text style={styles.approveBtnText}>Chấp nhận</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -350,6 +401,18 @@ export default function BookingRequestsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      <View style={styles.tabContainer}>
+        <TouchableOpacity style={[styles.tab, filterStatus === "Pending" && styles.activeTab]} onPress={() => setFilterStatus("Pending")}>
+          <Text style={[styles.tabText, filterStatus === "Pending" && styles.activeTabText]}>Chờ duyệt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, filterStatus === "Approved" && styles.activeTab]} onPress={() => setFilterStatus("Approved")}>
+          <Text style={[styles.tabText, filterStatus === "Approved" && styles.activeTabText]}>Đã duyệt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, filterStatus === "Rejected" && styles.activeTab]} onPress={() => setFilterStatus("Rejected")}>
+          <Text style={[styles.tabText, filterStatus === "Rejected" && styles.activeTabText]}>Từ chối</Text>
+        </TouchableOpacity>
+      </View>
+
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#00A67E" />
@@ -358,7 +421,7 @@ export default function BookingRequestsScreen() {
         <View style={styles.center}>
           <Feather name="inbox" size={48} color="#D1D5DB" />
           <Text style={styles.emptyText}>
-            Không có yêu cầu thuê nào đang chờ duyệt
+            Không có yêu cầu nào
           </Text>
         </View>
       ) : (
@@ -369,9 +432,55 @@ export default function BookingRequestsScreen() {
           contentContainerStyle={{ padding: 16 }}
         />
       )}
+
+      {/* Reject Reason Modal */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Từ chối yêu cầu</Text>
+            <Text style={styles.modalDesc}>Vui lòng nhập lý do từ chối:</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Nhập lý do..."
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setRejectModalVisible(false)}
+              >
+                <Text style={styles.modalBtnCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnSubmit]}
+                onPress={() => {
+                  if (!rejectReason.trim()) {
+                    Alert.alert("Lỗi", "Lý do không được để trống!");
+                    return;
+                  }
+                  if (rejectTarget) {
+                    setRejectModalVisible(false);
+                    updateStatusApi(rejectTarget.requestId, "Rejected", rejectTarget.lesseeId, rejectReason);
+                  }
+                }}
+              >
+                <Text style={styles.modalBtnSubmitText}>Xác nhận</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
@@ -380,12 +489,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 48,
+    paddingBottom: 16,
     backgroundColor: "#0D1117",
   },
-  backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#00A67E',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: '#00A67E',
+    fontWeight: '600',
+  },
+  backBtn: { padding: 4 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
   emptyText: { fontSize: 16, color: "#6B7280", marginTop: 16, textAlign: "center" },
   card: {
     backgroundColor: "#fff",
@@ -439,5 +574,34 @@ const styles = StyleSheet.create({
   rejectBtn: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FEE2E2" },
   rejectBtnText: { color: "#EF4444", fontWeight: "700" },
   approveBtn: { backgroundColor: "#00A67E" },
-  approveBtnText: { color: "#fff", fontWeight: "700" },
+  approveBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "80%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10, color: "#111827" },
+  modalDesc: { fontSize: 14, color: "#4B5563", marginBottom: 12 },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    padding: 12,
+    height: 80,
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12 },
+  modalBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
+  modalBtnCancel: { backgroundColor: "#F3F4F6" },
+  modalBtnSubmit: { backgroundColor: "#EF4444" },
+  modalBtnCancelText: { color: "#374151", fontWeight: "600" },
+  modalBtnSubmitText: { color: "#fff", fontWeight: "600" },
 });

@@ -60,7 +60,7 @@ const getPicUrl = (pic: any) => {
 export default function ListingDetailScreen() {
   const { id, openBooking } = useLocalSearchParams();
   const router = useRouter();
-  
+
   useEffect(() => {
     if (openBooking === 'true') {
       setIsBookingModalOpen(true);
@@ -91,127 +91,130 @@ export default function ListingDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-    const fetchDetail = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem("portal_token");
-        const storedUserId = await AsyncStorage.getItem("current_user_id");
-        setToken(storedToken);
-        setCurrentUserId(storedUserId);
+      const fetchDetail = async () => {
+        try {
+          const storedToken = await AsyncStorage.getItem("portal_token");
+          const storedUserId = await AsyncStorage.getItem("current_user_id");
+          setToken(storedToken);
+          setCurrentUserId(storedUserId);
 
-        const [spaceRes, listingRes, catRes] = await Promise.all([
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/Space/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/BussinessCategory/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-        ]);
+          const [spaceRes, listingRes, catRes] = await Promise.all([
+            fetch(
+              "https://flexi-space-capstone-project.onrender.com/api/Space/GetAll",
+              { headers: { accept: "*/*" } },
+            ),
+            fetch(
+              "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll",
+              { headers: { accept: "*/*" } },
+            ),
+            fetch(
+              "https://flexi-space-capstone-project.onrender.com/api/BussinessCategory/GetAll",
+              { headers: { accept: "*/*" } },
+            ),
+          ]);
 
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          setBusinessCategories(Array.isArray(catData) ? catData : catData?.data || []);
-        }
+          if (catRes.ok) {
+            const catData = await catRes.json();
+            setBusinessCategories(Array.isArray(catData) ? catData : catData?.data || []);
+          }
 
-        let spaces: any[] = [];
-        if (spaceRes.ok) spaces = await spaceRes.json();
+          let spaces: any[] = [];
+          if (spaceRes.ok) {
+            const spaceData = await spaceRes.json();
+            spaces = Array.isArray(spaceData) ? spaceData : spaceData?.data || spaceData?.items || [];
+          }
 
-        if (listingRes.ok) {
-          const listingData = await listingRes.json();
-          const safeData = Array.isArray(listingData)
-            ? listingData
-            : listingData?.data || listingData?.items || [];
+          if (listingRes.ok) {
+            const listingData = await listingRes.json();
+            const safeData = Array.isArray(listingData)
+              ? listingData
+              : listingData?.data || listingData?.items || [];
 
-          const found = safeData.find(
-            (item: any) =>
-              item.id?.toString() === id || item.Id?.toString() === id,
-          );
-
-          if (found) {
-            let parentSpace = spaces.find(
-              (s: any) => (s.id || s.Id) === (found.spaceId || found.SpaceId),
+            const found = safeData.find(
+              (item: any) =>
+                item.id?.toString() === id || item.Id?.toString() === id,
             );
-            let isSpacePart = false;
 
-            if (!parentSpace) {
-              // Try to fetch space part info
-              try {
-                const spRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${found.spaceId || found.SpaceId}`);
-                if (spRes.ok) {
-                  parentSpace = await spRes.json();
-                  isSpacePart = true;
-                }
-              } catch(e) {}
-            }
+            if (found) {
+              let parentSpace = spaces.find(
+                (s: any) => String(s.id || s.Id) === String(found.spaceId || found.SpaceId),
+              );
+              let isSpacePart = false;
 
-            const merged = {
-              ...found,
-              area: found.area || parentSpace?.area || null,
-              address:
-                found.location ||
-                found.address ||
-                parentSpace?.address ||
-                parentSpace?.location ||
-                "",
-              amenities: found.amenities || parentSpace?.amenities || [],
-              operatingHours:
-                found.operatingHours || parentSpace?.operatingHours || [],
-              allowedCategories:
-                found.spaceAllowedCategories ||
-                parentSpace?.spaceAllowedCategories ||
-                [],
-              isSpacePart,
-            };
-            // Store the parent space's ownerId for owner detection
-            if (parentSpace) {
-              merged._spaceOwnerId = parentSpace.ownerId || parentSpace.OwnerId || parentSpace.creatorId || parentSpace.createdBy;
+              if (!parentSpace) {
+                // Try to fetch space part info
+                try {
+                  const spRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${found.spaceId || found.SpaceId}`);
+                  if (spRes.ok) {
+                    parentSpace = await spRes.json();
+                    isSpacePart = true;
+                  }
+                } catch (e) { }
+              }
+
+              const merged = {
+                ...found,
+                area: found.area || parentSpace?.area || null,
+                address:
+                  found.location ||
+                  found.address ||
+                  parentSpace?.address ||
+                  parentSpace?.location ||
+                  "",
+                amenities: found.amenities || parentSpace?.amenities || [],
+                operatingHours:
+                  found.operatingHours || parentSpace?.operatingHours || [],
+                allowedCategories:
+                  found.spaceAllowedCategories ||
+                  parentSpace?.spaceAllowedCategories ||
+                  [],
+                isSpacePart,
+              };
+              // Store the parent space's ownerId for owner detection
+              if (parentSpace) {
+                merged._spaceOwnerId = parentSpace.ownerId || parentSpace.OwnerId || parentSpace.creatorId || parentSpace.createdBy;
+              }
+              setListing(merged);
+              if (merged.price) setBookingOfferedPrice(merged.price.toString());
             }
-            setListing(merged);
-            if (merged.price) setBookingOfferedPrice(merged.price.toString());
           }
-        }
 
-        if (storedToken && id) {
-          const favRes = await fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser",
-            {
-              headers: {
-                Authorization: `Bearer ${storedToken}`,
-                accept: "*/*",
+          if (storedToken && id) {
+            const favRes = await fetch(
+              "https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser",
+              {
+                headers: {
+                  Authorization: `Bearer ${storedToken}`,
+                  accept: "*/*",
+                },
               },
-            },
-          );
-          if (favRes.ok) {
-            const favData = await favRes.json();
-            const favArray = Array.isArray(favData)
-              ? favData
-              : favData?.data || favData?.items || favData?.listingIds || [];
-            const isFav = favArray.some((item: any) => {
-              if (typeof item === "number" || typeof item === "string")
-                return item.toString() === id.toString();
-              const itemId =
-                item?.listingId ||
-                item?.ListingId ||
-                item?.listing?.id ||
-                item?.id ||
-                item?.Id;
-              return itemId?.toString() === id.toString();
-            });
-            setIsFavorite(isFav);
+            );
+            if (favRes.ok) {
+              const favData = await favRes.json();
+              const favArray = Array.isArray(favData)
+                ? favData
+                : favData?.data || favData?.items || favData?.listingIds || [];
+              const isFav = favArray.some((item: any) => {
+                if (typeof item === "number" || typeof item === "string")
+                  return item.toString() === id.toString();
+                const itemId =
+                  item?.listingId ||
+                  item?.ListingId ||
+                  item?.listing?.id ||
+                  item?.id ||
+                  item?.Id;
+                return itemId?.toString() === id.toString();
+              });
+              setIsFavorite(isFav);
+            }
           }
+        } catch (error) {
+          console.error("Lỗi tải chi tiết:", error);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        console.error("Lỗi tải chi tiết:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    if (id) fetchDetail();
+      };
+      if (id) fetchDetail();
     }, [id])
   );
 
@@ -329,7 +332,7 @@ export default function ListingDetailScreen() {
         try {
           const errObj = rawText ? JSON.parse(rawText) : {};
           errMsg = errObj.message || errObj.title || errObj.detail || JSON.stringify(errObj.errors || errObj);
-        } catch {}
+        } catch { }
         Alert.alert("Lỗi", errMsg);
       }
     } catch (error) {
@@ -506,7 +509,7 @@ export default function ListingDetailScreen() {
 
           {/* 4. CHỦ NHÀ */}
           {!isOwner && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.hostSection}
               onPress={() => {
                 const uId = listing.creatorId || listing.CreatorId;
@@ -533,7 +536,7 @@ export default function ListingDetailScreen() {
           {/* 5. MÔ TẢ */}
           <View style={styles.descSection}>
             <Text style={styles.sectionTitle}>Thông tin mô tả</Text>
-            <Text 
+            <Text
               style={styles.description}
               numberOfLines={isDescExpanded ? undefined : 4}
             >
@@ -639,28 +642,28 @@ export default function ListingDetailScreen() {
 
           {/* BỔ SUNG: THÔNG TIN THÊM (Ngày đăng, mã, etc) */}
           <View style={[styles.descSection, { paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', marginBottom: 20 }]}>
-             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                <View style={{ width: '48%', marginBottom: 16 }}>
-                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12}/> Ngày đăng</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
-                    {listing.createdAt ? new Date(listing.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'}
-                  </Text>
-                </View>
-                <View style={{ width: '48%', marginBottom: 16 }}>
-                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12}/> Ngày hết hạn</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
-                    {listing.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : 'Sau 30 ngày'}
-                  </Text>
-                </View>
-                <View style={{ width: '48%' }}>
-                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="hash" size={12}/> Mã tin</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>#{listing.id || listing.Id}</Text>
-                </View>
-                <View style={{ width: '48%' }}>
-                  <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12}/> Tình trạng</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
-                </View>
-             </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              <View style={{ width: '48%', marginBottom: 16 }}>
+                <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12} /> Ngày đăng</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
+                  {listing.createdAt ? new Date(listing.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'}
+                </Text>
+              </View>
+              <View style={{ width: '48%', marginBottom: 16 }}>
+                <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="calendar" size={12} /> Ngày hết hạn</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>
+                  {listing.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : 'Sau 30 ngày'}
+                </Text>
+              </View>
+              <View style={{ width: '48%' }}>
+                <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="hash" size={12} /> Mã tin</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>#{listing.id || listing.Id}</Text>
+              </View>
+              <View style={{ width: '48%' }}>
+                <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12} /> Tình trạng</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
+              </View>
+            </View>
           </View>
 
           {/* 9. BẢN ĐỒ (HỖ TRỢ CẢ WEB VÀ MOBILE) */}
@@ -881,6 +884,8 @@ export default function ListingDetailScreen() {
                             mode="date"
                             display="spinner"
                             minimumDate={new Date()}
+                            themeVariant="light"
+                            textColor="#111827"
                             onChange={(event, selectedDate) => {
                               if (selectedDate) {
                                 setBookingStartDate(selectedDate.toISOString().split("T")[0]);
