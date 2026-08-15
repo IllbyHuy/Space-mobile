@@ -16,19 +16,42 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const API_BASE = "https://flexi-space-capstone-project.onrender.com";
-const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
 
-const getPicUrl = (pic: any): string | null => {
-  if (!pic) return null;
-  if (typeof pic === "string") return pic;
-  return pic.imageUrl || pic.url || pic.pictureUrl || null;
-};
+// GIỐNG HỆT WEB: tìm URL ảnh theo nhiều key khác nhau
+const URL_KEYS = ["imageUrl", "url", "pictureUrl", "fileUrl", "secureUrl", "publicUrl", "src", "link", "path"];
+const NESTED_KEYS = ["picture", "image", "file", "media"];
+
+function getListingPictureUrl(picture: unknown): string | null {
+  if (!picture) return null;
+  if (typeof picture === "string") return picture;
+  if (typeof picture !== "object") return null;
+  const obj = picture as Record<string, unknown>;
+  for (const key of URL_KEYS) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  for (const key of NESTED_KEYS) {
+    const nestedUrl = getListingPictureUrl(obj[key]);
+    if (nestedUrl) return nestedUrl;
+  }
+  return null;
+}
+
+// GIỐNG HỆT WEB: lấy địa chỉ từ listing hoặc Space cha
+function getListingAddress(listing: any, spacesById: Record<number, any>): string {
+  if (!listing) return "";
+  const parentSpace = spacesById[listing.spaceId ?? listing.SpaceId];
+  return listing.location || listing.address || parentSpace?.address || parentSpace?.location || "";
+}
 
 export default function BookingRequestsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [requests, setRequests] = useState<any[]>([]);
   const [listingsById, setListingsById] = useState<Record<number, any>>({});
+  const [spacesById, setSpacesById] = useState<Record<number, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -52,28 +75,26 @@ export default function BookingRequestsScreen() {
   const fetchRequests = async () => {
     setIsLoading(true);
     try {
-      // Fetch requests and all listings in parallel
-      const [reqRes, listingRes] = await Promise.all([
+      // GIỐNG WEB: fetch requests + spaces song song
+      const [reqRes, spacesRes] = await Promise.all([
         fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=Pending`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
         }),
-        fetch(`${API_BASE}/api/Listing/GetAll`, {
-          headers: { accept: "*/*" },
+        fetch(`${API_BASE}/api/Space/GetAll`, {
+          headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
         }),
       ]);
 
-      // Build listings map from GetAll (reliable source for pictures)
-      if (listingRes.ok) {
-        const listingData = await listingRes.json();
-        const safeListings = Array.isArray(listingData)
-          ? listingData
-          : listingData?.data || listingData?.items || [];
+      // Build spaces map (để ghép địa chỉ)
+      if (spacesRes.ok) {
+        const spacesData = await spacesRes.json();
+        const safeSpaces = Array.isArray(spacesData) ? spacesData : spacesData?.data || spacesData?.items || [];
         const map: Record<number, any> = {};
-        safeListings.forEach((l: any) => {
-          const id = l.id || l.Id;
-          if (id) map[id] = l;
+        safeSpaces.forEach((s: any) => {
+          const id = s.id ?? s.Id;
+          if (id != null) map[id] = s;
         });
-        setListingsById(map);
+        setSpacesById(map);
       }
 
       if (reqRes.ok) {
@@ -83,6 +104,31 @@ export default function BookingRequestsScreen() {
           (req: any) => String(req.lessorId) === String(currentUserId),
         );
         setRequests(myRequests);
+
+        // GIỐNG WEB: fetch từng listing theo GetById (đáng tin cậy hơn GetAll)
+        const uniqueListingIds = Array.from(
+          new Set(myRequests.map((r: any) => r.listingId || r.ListingId).filter(Boolean))
+        );
+        const listingResults = await Promise.all(
+          uniqueListingIds.map(async (listingId) => {
+            try {
+              const res = await fetch(
+                `${API_BASE}/api/Listing/GetById/${listingId}`,
+                { headers: { Authorization: `Bearer ${token}`, accept: "*/*" } }
+              );
+              if (!res.ok) return null;
+              const listingData = await res.json();
+              return { listingId, listing: listingData };
+            } catch {
+              return null;
+            }
+          })
+        );
+        const listingMap: Record<number, any> = {};
+        listingResults.forEach((entry: any) => {
+          if (entry) listingMap[entry.listingId] = entry.listing;
+        });
+        setListingsById(listingMap);
       }
     } catch (error) {
       console.error("Lỗi tải danh sách yêu cầu:", error);
@@ -97,7 +143,6 @@ export default function BookingRequestsScreen() {
     lesseeId: string,
   ) => {
     if (!requestId) return;
-
     const actionLabel = newStatus === "Approved" ? "DUYỆT" : "TỪ CHỐI";
 
     if (Platform.OS === "web") {
@@ -148,16 +193,18 @@ export default function BookingRequestsScreen() {
         try {
           await fetch(
             `${API_BASE}/api/Conversation/Create?lessorId=${currentUserId}&lesseeId=${lesseeId}`,
-            { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+            { method: "POST", headers: { Authorization: `Bearer ${token}`, accept: "*/*" } },
           );
           Alert.alert("Thành công", "Đã duyệt đơn và tạo phòng chat thành công!");
         } catch {
           Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
         }
       } else {
-        Alert.alert("Thành công", newStatus === "Approved" ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!");
+        Alert.alert(
+          "Thành công",
+          newStatus === "Approved" ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!",
+        );
       }
-
       fetchRequests();
     } catch (error) {
       console.error("Lỗi cập nhật:", error);
@@ -168,14 +215,14 @@ export default function BookingRequestsScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const listingId = item.listingId || item.ListingId;
     const listing = listingsById[listingId];
-    const pic = listing?.listingPictures?.[0] || listing?.pictures?.[0];
-    const listingImage = getPicUrl(pic) || FALLBACK_IMAGE;
-    const listingName = listing?.name || listing?.title || `Mặt bằng #${listingId}`;
-    const listingAddress = listing?.spaceAddress || listing?.address || listing?.location || "";
+    const picObj = listing?.listingPictures?.[0] || listing?.pictures?.[0];
+    const listingImage = getListingPictureUrl(picObj) || FALLBACK_IMAGE;
+    const listingName = listing?.name || listing?.title || (listing === undefined ? "Đang tải..." : `Mặt bằng #${listingId}`);
+    const listingAddress = getListingAddress(listing, spacesById);
 
     return (
       <View style={styles.card}>
-        {/* Ảnh + tên listing */}
+        {/* Ảnh + tên listing — nhấn để xem chi tiết */}
         <TouchableOpacity
           style={styles.listingRow}
           activeOpacity={0.8}
@@ -189,11 +236,15 @@ export default function BookingRequestsScreen() {
             resizeMode="cover"
           />
           <View style={styles.listingInfo}>
-            <Text style={styles.listingName} numberOfLines={2}>{listingName}</Text>
+            <Text style={styles.listingName} numberOfLines={2}>
+              {listingName}
+            </Text>
             {!!listingAddress && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+              <View style={styles.addrRow}>
                 <Feather name="map-pin" size={11} color="#6B7280" />
-                <Text style={styles.listingAddr} numberOfLines={1}>{listingAddress}</Text>
+                <Text style={styles.listingAddr} numberOfLines={1}>
+                  {listingAddress}
+                </Text>
               </View>
             )}
             <View style={styles.viewDetailRow}>
@@ -203,7 +254,6 @@ export default function BookingRequestsScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Đường kẻ */}
         <View style={styles.divider} />
 
         {/* Thông tin yêu cầu */}
@@ -218,15 +268,19 @@ export default function BookingRequestsScreen() {
           <View style={styles.infoRow}>
             <Feather name="calendar" size={14} color="#6B7280" />
             <Text style={styles.infoText}>
-              <Text style={styles.bold}>Ngày bắt đầu: </Text>
-              {item.expectedStartDate ? new Date(item.expectedStartDate).toLocaleDateString("vi-VN") : "—"}
+              <Text style={styles.bold}>Bắt đầu: </Text>
+              {item.expectedStartDate
+                ? new Date(item.expectedStartDate).toLocaleDateString("vi-VN")
+                : "—"}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Feather name="calendar" size={14} color="#6B7280" />
             <Text style={styles.infoText}>
-              <Text style={styles.bold}>Ngày kết thúc: </Text>
-              {item.expectedEndDate ? new Date(item.expectedEndDate).toLocaleDateString("vi-VN") : "—"}
+              <Text style={styles.bold}>Kết thúc: </Text>
+              {item.expectedEndDate
+                ? new Date(item.expectedEndDate).toLocaleDateString("vi-VN")
+                : "—"}
             </Text>
           </View>
           <View style={styles.infoRow}>
@@ -242,7 +296,8 @@ export default function BookingRequestsScreen() {
             <View style={styles.infoRow}>
               <Feather name="briefcase" size={14} color="#6B7280" />
               <Text style={styles.infoText}>
-                <Text style={styles.bold}>Mục đích: </Text>{item.purpose}
+                <Text style={styles.bold}>Mục đích: </Text>
+                {item.purpose}
               </Text>
             </View>
           )}
@@ -250,7 +305,8 @@ export default function BookingRequestsScreen() {
             <View style={styles.infoRow}>
               <Feather name="file-text" size={14} color="#6B7280" />
               <Text style={styles.infoText}>
-                <Text style={styles.bold}>Ghi chú: </Text>{item.note}
+                <Text style={styles.bold}>Ghi chú: </Text>
+                {item.note}
               </Text>
             </View>
           )}
@@ -356,6 +412,7 @@ const styles = StyleSheet.create({
   },
   listingInfo: { flex: 1 },
   listingName: { fontSize: 15, fontWeight: "700", color: "#111827", lineHeight: 20 },
+  addrRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
   listingAddr: { fontSize: 12, color: "#6B7280", flex: 1 },
   viewDetailRow: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 2 },
   viewDetailText: { fontSize: 12, color: "#00A67E", fontWeight: "600" },
