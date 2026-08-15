@@ -523,6 +523,12 @@ export default function ChatScreen() {
                       <Text style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: 4 }}>Mã yêu cầu: #{item.id}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Tin đăng: {item.listingName}</Text>
                       <Text style={{ color: '#334155', marginBottom: 2 }}>Mặt bằng: {item.spaceName}</Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>
+                        Thời gian: {item.expectedStartDate ? new Date(item.expectedStartDate).toLocaleDateString('vi-VN') : '?'} - {item.expectedEndDate ? new Date(item.expectedEndDate).toLocaleDateString('vi-VN') : '?'}
+                      </Text>
+                      <Text style={{ color: '#334155', marginBottom: 2 }}>
+                        Giá đề xuất: {item.offeredPrice ? item.offeredPrice.toLocaleString('vi-VN') + ' VNĐ/tháng' : 'Thỏa thuận'}
+                      </Text>
                     </View>
                   )}
                 />
