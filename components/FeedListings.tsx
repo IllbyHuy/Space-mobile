@@ -12,6 +12,7 @@ import {
   ScrollView,
   Dimensions,
   Linking,
+  RefreshControl,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -87,16 +88,16 @@ export const FeedListings = ({
   const [listings, setListings] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const screenWidth = Dimensions.get("window").width;
 
-  useEffect(() => {
-    const fetchFeed = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem("portal_token");
-        setToken(storedToken);
+  const fetchFeed = async () => {
+    try {
+      const storedToken = await AsyncStorage.getItem("portal_token");
+      setToken(storedToken);
 
         const [spaceRes, listingRes, bannerRes] = await Promise.all([
           fetch(
@@ -207,14 +208,20 @@ export const FeedListings = ({
             setFavoriteIds(new Set(ids));
           }
         }
-      } catch (error) {
-        console.error("Lỗi tải Feed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchFeed();
+    } catch (error) {
+      console.error("Lỗi tải Feed:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchFeed().finally(() => setIsLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeed();
+    setRefreshing(false);
+  };
 
   const handleToggleFavorite = async (listingId: string | number) => {
     if (!token) {
@@ -496,6 +503,14 @@ export const FeedListings = ({
         paddingBottom: 100, // Khoảng trống cho Bottom Bar đè lên
         backgroundColor: "#CED0D4",
       }}
+      refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={onRefresh} 
+          tintColor="#00A67E"
+          colors={["#00A67E"]}
+        />
+      }
     />
   );
 };

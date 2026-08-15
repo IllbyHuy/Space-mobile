@@ -62,7 +62,7 @@ export default function BookingRequestsScreen() {
         setRequests(myRequests);
 
         const uniqueListingIds = Array.from(
-          new Set(myRequests.map((r: any) => r.listingId).filter(Boolean)),
+          new Set(myRequests.map((r: any) => r.listingId || r.ListingId).filter(Boolean)),
         );
         const listingResults = await Promise.all(
           uniqueListingIds.map(async (listingId) => {
@@ -216,10 +216,17 @@ export default function BookingRequestsScreen() {
     }
   };
 
+  const getPicUrl = (pic: any): string | null => {
+    if (!pic) return null;
+    if (typeof pic === 'string') return pic;
+    return pic.imageUrl || pic.url || pic.pictureUrl || null;
+  };
+
   const renderItem = ({ item }: { item: any }) => {
-    const listing = listingsById[item.listingId];
+    const listingId = item.listingId || item.ListingId;
+    const listing = listingsById[listingId];
     const pic = listing?.listingPictures?.[0] || listing?.pictures?.[0];
-    const listingImage = pic?.imageUrl || pic?.url || pic?.pictureUrl || "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
+    const listingImage = getPicUrl(pic) || "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
 
     return (
       <View style={styles.card}>
@@ -236,7 +243,10 @@ export default function BookingRequestsScreen() {
             alignItems: "center",
             marginBottom: 16,
           }}
-          onPress={() => router.push(`/listing/${item.listingId}` as any)}
+          onPress={() => {
+            const id = item.listingId || item.ListingId;
+            if (id) router.push(`/listing/${id}` as any);
+          }}
         >
           {listingImage ? (
             <Image
@@ -268,7 +278,7 @@ export default function BookingRequestsScreen() {
               style={{ fontWeight: "bold", fontSize: 16, color: "#111827" }}
               numberOfLines={1}
             >
-              {listing?.name || `Mã tin: #${item.listingId}`}
+              {listing?.name || listing?.title || `Mã tin: #${item.listingId || item.ListingId}`}
             </Text>
             <Text style={{ color: "#6B7280", fontSize: 13 }} numberOfLines={1}>
               Nhấn để xem tin đăng

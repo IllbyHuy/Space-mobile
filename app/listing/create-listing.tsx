@@ -504,7 +504,7 @@ export default function CreateListingScreen() {
     const startCheck = new Date(allowedStartTime);
     startCheck.setHours(0, 0, 0, 0);
 
-    if (startCheck < today) {
+    if (listingType === 0 && startCheck < today) {
       if (Platform.OS === 'web') return window.alert('Thời gian bắt đầu không được ở quá khứ!');
       return Alert.alert('Lỗi', 'Thời gian bắt đầu không được ở quá khứ!');
     }
