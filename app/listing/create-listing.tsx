@@ -282,6 +282,7 @@ export default function CreateListingScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [priceUnit, setPriceUnit] = useState('PerHour');
   const [listingType, setListingType] = useState<0 | 1>(0);
   const [maxRenters, setMaxRenters] = useState('');
   const [availableSlots, setAvailableSlots] = useState('');
@@ -573,6 +574,7 @@ export default function CreateListingScreen() {
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
+      priceUnit,
       listingPictures: [],
     };
 
@@ -871,7 +873,7 @@ export default function CreateListingScreen() {
 
         {/* Giá */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Đơn giá (VND/tháng) *</Text>
+          <Text style={styles.label}>Đơn giá (VND) *</Text>
           <TextInput
             style={styles.input}
             placeholder="VD: 5000000"
@@ -884,6 +886,28 @@ export default function CreateListingScreen() {
               = {Number(price).toLocaleString('vi-VN')} VNĐ
             </Text>
           ) : null}
+        </View>
+
+        {/* Đơn vị tính */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Đơn vị tính *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+            {[
+              { id: 'PerHour', name: '/ Giờ' },
+              { id: 'PerDay', name: '/ Ngày' },
+              { id: 'PerWeek', name: '/ Tuần' },
+              { id: 'PerMonth', name: '/ Tháng' },
+              { id: 'PerYear', name: '/ Năm' }
+            ].map(unit => (
+              <TouchableOpacity
+                key={unit.id}
+                style={[styles.typeBtn, priceUnit === unit.id && styles.typeBtnActive, { marginRight: 8, paddingHorizontal: 16 }]}
+                onPress={() => setPriceUnit(unit.id)}
+              >
+                <Text style={[styles.typeBtnText, priceUnit === unit.id && styles.typeBtnTextActive]}>{unit.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Thời gian hiệu lực */}

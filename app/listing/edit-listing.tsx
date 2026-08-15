@@ -249,6 +249,7 @@ export default function EditListingScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [priceUnit, setPriceUnit] = useState('PerHour');
   const [listingType, setListingType] = useState<0 | 1>(0);
   const [maxRenters, setMaxRenters] = useState('');
   
@@ -349,6 +350,7 @@ export default function EditListingScreen() {
             setName(target.name || target.title || '');
             setDescription(target.description || '');
             setPrice(target.price?.toString() || '');
+            setPriceUnit(target.priceUnit || 'PerHour');
             const type = target.listingType === 'SharedSpace' || target.listingType === 1 ? 1 : 0;
             setListingType(type);
             if (type === 1) {
@@ -504,6 +506,7 @@ export default function EditListingScreen() {
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
+      priceUnit,
       listingPictures: [],
     };
 
@@ -763,7 +766,7 @@ export default function EditListingScreen() {
 
           {/* Giá */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Đơn giá (VND/tháng) *</Text>
+            <Text style={styles.label}>Đơn giá (VND) *</Text>
             <TextInput
               style={styles.input}
               placeholder="VD: 5000000"
@@ -776,6 +779,28 @@ export default function EditListingScreen() {
                 = {Number(price).toLocaleString('vi-VN')} VNĐ
               </Text>
             ) : null}
+          </View>
+
+          {/* Đơn vị tính */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Đơn vị tính *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+              {[
+                { id: 'PerHour', name: '/ Giờ' },
+                { id: 'PerDay', name: '/ Ngày' },
+                { id: 'PerWeek', name: '/ Tuần' },
+                { id: 'PerMonth', name: '/ Tháng' },
+                { id: 'PerYear', name: '/ Năm' }
+              ].map(unit => (
+                <TouchableOpacity
+                  key={unit.id}
+                  style={[styles.typeBtn, priceUnit === unit.id && styles.typeBtnActive, { marginRight: 8, paddingHorizontal: 16 }]}
+                  onPress={() => setPriceUnit(unit.id)}
+                >
+                  <Text style={[styles.typeBtnText, priceUnit === unit.id && styles.typeBtnTextActive]}>{unit.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
 
           {/* Thời gian hiệu lực */}
