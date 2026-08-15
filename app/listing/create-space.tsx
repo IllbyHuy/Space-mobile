@@ -392,14 +392,14 @@ export default function CreateSpaceScreen() {
       })),
       operatingHours: isFullWeek
         ? DAYS_OF_WEEK.map((h) => ({
-            dayOfWeek: h.id,
+            dayOfWeek: h.id === 0 ? 0 : h.id - 1,
             openTime: "08:00:00",
             closeTime: "22:00:00",
           }))
         : operatingHours
             .filter((h) => h.enabled)
             .map((h) => ({
-              dayOfWeek: h.dayOfWeek,
+              dayOfWeek: h.dayOfWeek === 0 ? 0 : h.dayOfWeek - 1,
               openTime:
                 h.openTime.length === 5 ? `${h.openTime}:00` : h.openTime,
               closeTime:
