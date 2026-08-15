@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { splitContractHeaderBody } from '@/utils/contractTemplates';
+import { getSignFlags, getSigningSessionStarted } from '@/utils/contract';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -53,15 +54,14 @@ export default function ContractDetailsScreen() {
       setContract(data);
       
       const isLessor = String(data.lessorId || data.LessorId) === String(currentUserId);
-      const lessorSigned = data.lessorSignature || data.LessorSignature || false;
-      const lesseeSigned = data.lesseeSignature || data.LesseeSignature || false;
+      const { lessorSigned, lesseeSigned } = getSignFlags(data);
       
       const signedByMe = isLessor ? lessorSigned : lesseeSigned;
       const status = data.status || data.Status;
       
       setSignStep(signedByMe || status === 'Active' ? 'success' : 'idle');
       
-      const sessionStarted = data.signingSessionStarted || data.SigningSessionStarted || status === 'Active' || lessorSigned || lesseeSigned;
+      const sessionStarted = getSigningSessionStarted(data) || status === 'Active' || lessorSigned || lesseeSigned;
       setSigningSessionStarted(sessionStarted);
       
       if (status === 'Active' || (lessorSigned && lesseeSigned)) {
