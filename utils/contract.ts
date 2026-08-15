@@ -39,7 +39,9 @@ export const getSignFlags = (contract: any) => {
       contract?.lessorSignedAt ??
       contract?.LessorSignedAt ??
       contract?.lessorSignDate ??
-      contract?.LessorSignDate
+      contract?.LessorSignDate ??
+      contract?.lessorSignature ??
+      contract?.LessorSignature
   );
   const lesseeSigned = isTruthySigned(
     contract?.isSignedByLessee ??
@@ -47,14 +49,16 @@ export const getSignFlags = (contract: any) => {
       contract?.lesseeSignedAt ??
       contract?.LesseeSignedAt ??
       contract?.lesseeSignDate ??
-      contract?.LesseeSignDate
+      contract?.LesseeSignDate ??
+      contract?.lesseeSignature ??
+      contract?.LesseeSignature
   );
   return { lessorSigned, lesseeSigned };
 };
 
 export const getSigningSessionStarted = (contract: any): boolean => {
   const s = contract?.status ?? contract?.Status;
-  if (s != null && s !== '') return s !== 'Draft';
+  if (s != null && s !== '' && s !== 'Draft') return true;
   return isTruthySigned(
     contract?.isSigningSessionStarted ??
       contract?.IsSigningSessionStarted ??
