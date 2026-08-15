@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { getPriceUnitText } from "@/utils/formatPriceUnit";
 
 const { width } = Dimensions.get("window");
 const FALLBACK_IMAGE =
@@ -470,7 +471,7 @@ export default function ListingDetailScreen() {
               <Text style={styles.specLabel}>Mức giá</Text>
               <Text style={styles.specValue}>
                 {listing.price
-                  ? `${listing.price.toLocaleString("vi-VN")} đ`
+                  ? `${listing.price.toLocaleString("vi-VN")} đ/${listing.priceUnit ? getPriceUnitText(listing.priceUnit) : (isHourly ? "giờ" : "tháng")}`
                   : "Thỏa thuận"}
               </Text>
             </View>
@@ -605,7 +606,7 @@ export default function ListingDetailScreen() {
               <View>
                 <Text style={{ color: '#777', fontSize: 13, marginBottom: 4 }}>Giá hiện tại</Text>
                 <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#00A67E' }}>
-                  {listing.price ? `${listing.price.toLocaleString('vi-VN')} ₫` : 'N/A'}
+                  {listing.price ? `${listing.price.toLocaleString('vi-VN')} ₫/${listing.priceUnit ? getPriceUnitText(listing.priceUnit) : (isHourly ? "giờ" : "tháng")}` : 'N/A'}
                 </Text>
               </View>
               <View>
@@ -748,7 +749,7 @@ export default function ListingDetailScreen() {
               <Text style={styles.bottomPrice}>
                 {listing?.price ? `${listing.price.toLocaleString("vi-VN")} đ` : "Thỏa thuận"}
                 <Text style={styles.bottomUnit}>
-                  {isHourly ? "/giờ" : "/tháng"}
+                  {listing?.priceUnit ? `/${getPriceUnitText(listing.priceUnit)}` : (isHourly ? "/giờ" : "/tháng")}
                 </Text>
               </Text>
             </View>

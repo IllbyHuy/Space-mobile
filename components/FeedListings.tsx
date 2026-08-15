@@ -16,6 +16,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getPriceUnitText } from "@/utils/formatPriceUnit";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800";
@@ -359,7 +360,7 @@ export const FeedListings = ({
           <Text style={styles.postPriceArea}>
             💰{" "}
             {item.price
-              ? `${item.price.toLocaleString("vi-VN")} đ`
+              ? `${item.price.toLocaleString("vi-VN")} đ/${item.priceUnit ? getPriceUnitText(item.priceUnit) : (isHourly ? "giờ" : "tháng")}`
               : "Thỏa thuận"}{" "}
             • {item.area ? `${item.area}m²` : "N/A"}
           </Text>
