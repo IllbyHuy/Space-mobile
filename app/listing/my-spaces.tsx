@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -83,7 +83,17 @@ export default function MySpacesScreen() {
     return (
       <TouchableOpacity style={styles.card} onPress={() => setExpanded(!expanded)} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={styles.cardInfo}>
+          {item.pictureURLs && item.pictureURLs.length > 0 ? (
+            <Image 
+              source={{ uri: item.pictureURLs[0].imageUrl || item.pictureURLs[0].ImageUrl }} 
+              style={styles.cardImage} 
+            />
+          ) : (
+            <View style={[styles.cardImage, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
+              <Feather name="image" size={24} color="#9CA3AF" />
+            </View>
+          )}
+          <View style={[styles.cardInfo, { marginLeft: 12 }]}>
             <Text style={styles.spaceTitle}>{item.name}</Text>
             <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}</Text>
             <Text style={styles.spaceDetail}><Feather name="maximize" size={14} color="#6B7280" /> {item.area || item.acreage || 0} m²</Text>
@@ -237,6 +247,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 2
   },
+  cardImage: { width: 80, height: 80, borderRadius: 8 },
   cardInfo: { flex: 1, paddingRight: 12 },
   spaceTitle: { fontSize: 16, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
   spaceDetail: { fontSize: 14, color: '#6B7280', marginBottom: 4 },

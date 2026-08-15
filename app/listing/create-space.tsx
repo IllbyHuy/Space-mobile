@@ -11,11 +11,14 @@ import {
   Switch,
   Modal,
   FlatList,
+  Platform,
+  Image,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 
 const API_BASE = "https://flexi-space-capstone-project.onrender.com";
 
@@ -53,6 +56,8 @@ export default function CreateSpaceScreen() {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [area, setArea] = useState("");
+
+  const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   // original city string when editing
   const [originalCity, setOriginalCity] = useState("");
@@ -97,6 +102,22 @@ export default function CreateSpaceScreen() {
   const [showDistrictPicker, setShowDistrictPicker] = useState(false);
   const [showWardPicker, setShowWardPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedImages((prev) => [...prev, ...result.assets]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -371,14 +392,14 @@ export default function CreateSpaceScreen() {
       })),
       operatingHours: isFullWeek
         ? DAYS_OF_WEEK.map((h) => ({
-            dayOfWeek: h.id,
+            dayOfWeek: h.id === 0 ? 0 : h.id - 1,
             openTime: "08:00:00",
             closeTime: "22:00:00",
           }))
         : operatingHours
             .filter((h) => h.enabled)
             .map((h) => ({
-              dayOfWeek: h.dayOfWeek,
+              dayOfWeek: h.dayOfWeek === 0 ? 0 : h.dayOfWeek - 1,
               openTime:
                 h.openTime.length === 5 ? `${h.openTime}:00` : h.openTime,
               closeTime:
@@ -411,6 +432,51 @@ export default function CreateSpaceScreen() {
         throw new Error(
           `Không thể ${isEditing ? "cập nhật" : "tạo"} mặt bằng. Kiểm tra lại thông tin!`,
         );
+      }
+
+      const resText = await res.text();
+      let createdSpaceId = id; // Fallback to id if editing
+      try {
+        const resData = JSON.parse(resText);
+        createdSpaceId = resData.id || resData.data?.id || resData || id;
+      } catch {
+        createdSpaceId = resText || id;
+      }
+
+      if (selectedImages.length > 0 && createdSpaceId) {
+        const formData = new FormData();
+        for (let i = 0; i < selectedImages.length; i++) {
+          const img = selectedImages[i];
+          if (Platform.OS === 'web') {
+            const fetchRes = await fetch(img.uri);
+            const blob = await fetchRes.blob();
+            formData.append('file', blob, img.fileName || `image_${i}.jpg`);
+          } else {
+            const filename = img.fileName || img.uri.split('/').pop() || `image_${i}.jpg`;
+            const type = img.mimeType || 'image/jpeg';
+            formData.append('file', {
+              uri: img.uri,
+              name: filename,
+              type,
+            } as any);
+          }
+        }
+        formData.append('spaceId', createdSpaceId.toString());
+
+        const picRes = await fetch(`${API_BASE}/api/Picture`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: '*/*',
+          },
+          body: formData,
+        });
+
+        if (!picRes.ok) {
+          console.error('Lỗi up ảnh:', await picRes.text().catch(() => ''));
+          Alert.alert('Cảnh báo', `Đã ${isEditing ? "cập nhật" : "tạo"} mặt bằng thành công nhưng tải ảnh lên thất bại!`, [{ text: 'OK', onPress: () => router.back() }]);
+          return;
+        }
       }
 
       Alert.alert(
@@ -758,6 +824,26 @@ export default function CreateSpaceScreen() {
             );
           })}
 
+        {/* Hình ảnh mặt bằng */}
+        <Text style={styles.sectionTitle}>Hình ảnh mặt bằng (Tùy chọn)</Text>
+        <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
+          <Feather name="image" size={20} color="#00A67E" />
+          <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
+        </TouchableOpacity>
+
+        {selectedImages.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+            {selectedImages.map((img, idx) => (
+              <View key={idx} style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
+                  <Feather name="x" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
         {/* SUBMIT */}
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
@@ -953,4 +1039,19 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F9FAFB",
   },
   modalItemText: { fontSize: 15, color: "#374151" },
+  
+  pickImageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
+    borderStyle: 'dashed', borderRadius: 8, padding: 16, marginBottom: 12, gap: 8
+  },
+  pickImageText: { color: '#00A67E', fontWeight: '500' },
+  imagePreviewContainer: { flexDirection: 'row', marginBottom: 16 },
+  imagePreviewWrapper: { marginRight: 12, position: 'relative' },
+  imagePreview: { width: 80, height: 80, borderRadius: 8 },
+  removeImageBtn: {
+    position: 'absolute', top: -6, right: -6, backgroundColor: 'red',
+    borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff'
+  },
 });
