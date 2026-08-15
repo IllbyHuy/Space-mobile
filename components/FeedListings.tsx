@@ -79,11 +79,15 @@ export const FeedListings = ({
   headerPadding = 0,
   searchQuery = "",
   showFavoritesOnly = false,
+  listingTypeFilter = 'all',
+  priceSortFilter = 'none',
 }: {
   onScroll?: any;
   headerPadding?: number;
   searchQuery?: string;
   showFavoritesOnly?: boolean;
+  listingTypeFilter?: 'all' | 'shared' | 'longterm';
+  priceSortFilter?: 'none' | 'asc' | 'desc';
 }) => {
   const [listings, setListings] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
@@ -433,6 +437,16 @@ export const FeedListings = ({
     );
   }
 
+  if (listingTypeFilter === 'shared') {
+    filteredListings = filteredListings.filter(
+      (item) => item.listingType === 'SharedSpace' || item.isHourly === true
+    );
+  } else if (listingTypeFilter === 'longterm') {
+    filteredListings = filteredListings.filter(
+      (item) => item.listingType !== 'SharedSpace' && item.isHourly !== true
+    );
+  }
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
   if (normalizedQuery) {
     filteredListings = filteredListings.filter(
@@ -440,6 +454,12 @@ export const FeedListings = ({
         (item.name || "").toLowerCase().includes(normalizedQuery) ||
         (item.address || "").toLowerCase().includes(normalizedQuery),
     );
+  }
+
+  if (priceSortFilter === 'asc') {
+    filteredListings = [...filteredListings].sort((a, b) => (a.price || 0) - (b.price || 0));
+  } else if (priceSortFilter === 'desc') {
+    filteredListings = [...filteredListings].sort((a, b) => (b.price || 0) - (a.price || 0));
   }
 
   const renderHeader = () => {

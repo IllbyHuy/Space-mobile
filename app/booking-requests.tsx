@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,13 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const API_BASE = "https://flexi-space-capstone-project.onrender.com";
+const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
+
+const getPicUrl = (pic: any): string | null => {
+  if (!pic) return null;
+  if (typeof pic === "string") return pic;
+  return pic.imageUrl || pic.url || pic.pictureUrl || null;
+};
 
 export default function BookingRequestsScreen() {
   const router = useRouter();
@@ -45,46 +52,37 @@ export default function BookingRequestsScreen() {
   const fetchRequests = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/PrimaryBookingRequest/GetAll?status=Pending`,
-        {
+      // Fetch requests and all listings in parallel
+      const [reqRes, listingRes] = await Promise.all([
+        fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=Pending`, {
           headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const safeData = Array.isArray(data)
-          ? data
-          : data?.data || data?.items || [];
+        }),
+        fetch(`${API_BASE}/api/Listing/GetAll`, {
+          headers: { accept: "*/*" },
+        }),
+      ]);
+
+      // Build listings map from GetAll (reliable source for pictures)
+      if (listingRes.ok) {
+        const listingData = await listingRes.json();
+        const safeListings = Array.isArray(listingData)
+          ? listingData
+          : listingData?.data || listingData?.items || [];
+        const map: Record<number, any> = {};
+        safeListings.forEach((l: any) => {
+          const id = l.id || l.Id;
+          if (id) map[id] = l;
+        });
+        setListingsById(map);
+      }
+
+      if (reqRes.ok) {
+        const data = await reqRes.json();
+        const safeData = Array.isArray(data) ? data : data?.data || data?.items || [];
         const myRequests = safeData.filter(
           (req: any) => String(req.lessorId) === String(currentUserId),
         );
         setRequests(myRequests);
-
-        const uniqueListingIds = Array.from(
-          new Set(myRequests.map((r: any) => r.listingId || r.ListingId).filter(Boolean)),
-        );
-        const listingResults = await Promise.all(
-          uniqueListingIds.map(async (listingId) => {
-            try {
-              const listingRes = await fetch(
-                `${API_BASE}/api/Listing/${listingId}`,
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                },
-              );
-              if (!listingRes.ok) return null;
-              return { listingId, listing: await listingRes.json() };
-            } catch {
-              return null;
-            }
-          }),
-        );
-        const listingMap: Record<number, any> = {};
-        listingResults.forEach((entry: any) => {
-          if (entry) listingMap[entry.listingId] = entry.listing;
-        });
-        setListingsById(listingMap);
       }
     } catch (error) {
       console.error("Lỗi tải danh sách yêu cầu:", error);
@@ -98,16 +96,12 @@ export default function BookingRequestsScreen() {
     newStatus: "Approved" | "Rejected",
     lesseeId: string,
   ) => {
-    if (!requestId) {
-      console.warn(
-        "Lỗi: Không tìm thấy ID của yêu cầu (requestId bị undefined)",
-      );
-      return;
-    }
+    if (!requestId) return;
+
+    const actionLabel = newStatus === "Approved" ? "DUYỆT" : "TỪ CHỐI";
 
     if (Platform.OS === "web") {
-      const confirmMsg = `Bạn có chắc muốn ${newStatus === "Approved" ? "DUYỆT" : "TỪ CHỐI"} yêu cầu này?`;
-      if (window.confirm(confirmMsg)) {
+      if (window.confirm(`Bạn có chắc muốn ${actionLabel} yêu cầu này?`)) {
         updateStatusApi(requestId, newStatus, lesseeId);
       }
       return;
@@ -115,7 +109,7 @@ export default function BookingRequestsScreen() {
 
     Alert.alert(
       "Xác nhận",
-      `Bạn có chắc muốn ${newStatus === "Approved" ? "DUYỆT" : "TỪ CHỐI"} yêu cầu này?`,
+      `Bạn có chắc muốn ${actionLabel} yêu cầu này?`,
       [
         { text: "Hủy", style: "cancel" },
         {
@@ -152,61 +146,16 @@ export default function BookingRequestsScreen() {
 
       if (newStatus === "Approved" && lesseeId) {
         try {
-          const convRes = await fetch(
+          await fetch(
             `${API_BASE}/api/Conversation/Create?lessorId=${currentUserId}&lesseeId=${lesseeId}`,
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token}` },
-            },
+            { method: "POST", headers: { Authorization: `Bearer ${token}` } },
           );
-
-          if (convRes.ok) {
-            if (Platform.OS === "web")
-              window.alert(
-                "Đã duyệt đơn và tạo phòng chat thành công! Khách thuê giờ đã có thể nhắn tin cho bạn.",
-              );
-            else
-              Alert.alert(
-                "Thành công",
-                "Đã duyệt đơn và tạo phòng chat thành công! Khách thuê giờ đã có thể nhắn tin cho bạn.",
-              );
-          } else {
-            if (Platform.OS === "web")
-              window.alert(
-                "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.",
-              );
-            else
-              Alert.alert(
-                "Thông báo",
-                "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.",
-              );
-          }
-        } catch (chatErr) {
-          console.error("Lỗi tạo phòng chat:", chatErr);
-          if (Platform.OS === "web")
-            window.alert(
-              "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.",
-            );
-          else
-            Alert.alert(
-              "Thông báo",
-              "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.",
-            );
+          Alert.alert("Thành công", "Đã duyệt đơn và tạo phòng chat thành công!");
+        } catch {
+          Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
         }
       } else {
-        if (Platform.OS === "web")
-          window.alert(
-            newStatus === "Approved"
-              ? "Đã duyệt thành công!"
-              : "Đã từ chối yêu cầu thuê!",
-          );
-        else
-          Alert.alert(
-            "Thành công",
-            newStatus === "Approved"
-              ? "Đã duyệt thành công!"
-              : "Đã từ chối yêu cầu thuê!",
-          );
+        Alert.alert("Thành công", newStatus === "Approved" ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!");
       }
 
       fetchRequests();
@@ -216,129 +165,117 @@ export default function BookingRequestsScreen() {
     }
   };
 
-  const getPicUrl = (pic: any): string | null => {
-    if (!pic) return null;
-    if (typeof pic === 'string') return pic;
-    return pic.imageUrl || pic.url || pic.pictureUrl || null;
-  };
-
   const renderItem = ({ item }: { item: any }) => {
     const listingId = item.listingId || item.ListingId;
     const listing = listingsById[listingId];
     const pic = listing?.listingPictures?.[0] || listing?.pictures?.[0];
-    const listingImage = getPicUrl(pic) || "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
+    const listingImage = getPicUrl(pic) || FALLBACK_IMAGE;
+    const listingName = listing?.name || listing?.title || `Mặt bằng #${listingId}`;
+    const listingAddress = listing?.spaceAddress || listing?.address || listing?.location || "";
 
     return (
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.requestDate}>
-            {new Date(item.expectedStartDate).toLocaleDateString("vi-VN")} -{" "}
-            {new Date(item.expectedEndDate).toLocaleDateString("vi-VN")}
-          </Text>
-        </View>
-
+        {/* Ảnh + tên listing */}
         <TouchableOpacity
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
+          style={styles.listingRow}
+          activeOpacity={0.8}
           onPress={() => {
-            const id = item.listingId || item.ListingId;
-            if (id) router.push(`/listing/${id}` as any);
+            if (listingId) router.push(`/listing/${listingId}` as any);
           }}
         >
-          {listingImage ? (
-            <Image
-              source={{ uri: listingImage }}
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: 8,
-                marginRight: 12,
-              }}
-            />
-          ) : (
-            <View
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: 8,
-                marginRight: 12,
-                backgroundColor: "#E5E7EB",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Feather name="image" size={20} color="#9CA3AF" />
+          <Image
+            source={{ uri: listingImage }}
+            style={styles.listingImage}
+            resizeMode="cover"
+          />
+          <View style={styles.listingInfo}>
+            <Text style={styles.listingName} numberOfLines={2}>{listingName}</Text>
+            {!!listingAddress && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <Feather name="map-pin" size={11} color="#6B7280" />
+                <Text style={styles.listingAddr} numberOfLines={1}>{listingAddress}</Text>
+              </View>
+            )}
+            <View style={styles.viewDetailRow}>
+              <Text style={styles.viewDetailText}>Nhấn để xem tin đăng</Text>
+              <Feather name="chevron-right" size={13} color="#00A67E" />
             </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{ fontWeight: "bold", fontSize: 16, color: "#111827" }}
-              numberOfLines={1}
-            >
-              {listing?.name || listing?.title || `Mã tin: #${item.listingId || item.ListingId}`}
-            </Text>
-            <Text style={{ color: "#6B7280", fontSize: 13 }} numberOfLines={1}>
-              Nhấn để xem tin đăng
-            </Text>
           </View>
         </TouchableOpacity>
 
+        {/* Đường kẻ */}
+        <View style={styles.divider} />
+
+        {/* Thông tin yêu cầu */}
         <View style={styles.cardBody}>
-          <Text style={styles.infoText}>
-            <Text style={styles.bold}>Người thuê:</Text>{" "}
-            {item.lesseeName || "Không rõ"}
-          </Text>
-          <Text style={styles.infoText}>
-            <Text style={styles.bold}>Giá đề xuất:</Text>{" "}
-            {item.offeredPrice
-              ? `${item.offeredPrice.toLocaleString("vi-VN")} VND`
-              : "Thỏa thuận"}
-          </Text>
-          <Text style={styles.infoText}>
-            <Text style={styles.bold}>Mục đích:</Text>{" "}
-            {item.purpose || "Không có"}
-          </Text>
-          <Text style={styles.infoText}>
-            <Text style={styles.bold}>Thời lượng:</Text> {item.duration || 1}{" "}
-            ngày
-          </Text>
-          {item.note && (
+          <View style={styles.infoRow}>
+            <Feather name="user" size={14} color="#6B7280" />
             <Text style={styles.infoText}>
-              <Text style={styles.bold}>Ghi chú:</Text> {item.note}
+              <Text style={styles.bold}>Người thuê: </Text>
+              {item.lesseeName || "Không rõ"}
             </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="calendar" size={14} color="#6B7280" />
+            <Text style={styles.infoText}>
+              <Text style={styles.bold}>Ngày bắt đầu: </Text>
+              {item.expectedStartDate ? new Date(item.expectedStartDate).toLocaleDateString("vi-VN") : "—"}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="calendar" size={14} color="#6B7280" />
+            <Text style={styles.infoText}>
+              <Text style={styles.bold}>Ngày kết thúc: </Text>
+              {item.expectedEndDate ? new Date(item.expectedEndDate).toLocaleDateString("vi-VN") : "—"}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Feather name="dollar-sign" size={14} color="#6B7280" />
+            <Text style={styles.infoText}>
+              <Text style={styles.bold}>Giá đề xuất: </Text>
+              {item.offeredPrice
+                ? `${item.offeredPrice.toLocaleString("vi-VN")} VND`
+                : "Thỏa thuận"}
+            </Text>
+          </View>
+          {!!item.purpose && (
+            <View style={styles.infoRow}>
+              <Feather name="briefcase" size={14} color="#6B7280" />
+              <Text style={styles.infoText}>
+                <Text style={styles.bold}>Mục đích: </Text>{item.purpose}
+              </Text>
+            </View>
+          )}
+          {!!item.note && (
+            <View style={styles.infoRow}>
+              <Feather name="file-text" size={14} color="#6B7280" />
+              <Text style={styles.infoText}>
+                <Text style={styles.bold}>Ghi chú: </Text>{item.note}
+              </Text>
+            </View>
           )}
         </View>
 
+        {/* Nút hành động */}
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.btn, styles.rejectBtn]}
             onPress={() =>
-              handleUpdateStatus(
-                item.id || item.Id,
-                "Rejected",
-                item.lesseeId || item.LesseeId,
-              )
+              handleUpdateStatus(item.id || item.Id, "Rejected", item.lesseeId || item.LesseeId)
             }
           >
-            <Feather name="x-circle" size={18} color="#EF4444" />
+            <Feather name="x-circle" size={16} color="#EF4444" />
             <Text style={styles.rejectBtnText}>Từ chối</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.btn, styles.approveBtn]}
             onPress={() =>
-              handleUpdateStatus(
-                item.id || item.Id,
-                "Approved",
-                item.lesseeId || item.LesseeId,
-              )
+              handleUpdateStatus(item.id || item.Id, "Approved", item.lesseeId || item.LesseeId)
             }
           >
-            <Feather name="check-circle" size={18} color="#fff" />
-            <Text style={styles.approveBtnText}>Duyệt</Text>
+            <Feather name="check-circle" size={16} color="#fff" />
+            <Text style={styles.approveBtnText}>Chấp nhận</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -371,7 +308,7 @@ export default function BookingRequestsScreen() {
       ) : (
         <FlatList
           data={requests}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => (item.id || item.Id).toString()}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16 }}
         />
@@ -392,55 +329,58 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#6B7280",
-    marginTop: 16,
-    textAlign: "center",
-  },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  emptyText: { fontSize: 16, color: "#6B7280", marginTop: 16, textAlign: "center" },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
     marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 3,
+    overflow: "hidden",
   },
-  cardHeader: {
+  listingRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    padding: 14,
+    gap: 12,
   },
-  requestTitle: { fontSize: 16, fontWeight: "bold", color: "#111827" },
-  requestDate: { fontSize: 12, color: "#6B7280" },
-  cardBody: { marginBottom: 16 },
-  infoText: { fontSize: 14, color: "#374151", marginBottom: 4 },
+  listingImage: {
+    width: 80,
+    height: 70,
+    borderRadius: 10,
+    backgroundColor: "#E5E7EB",
+  },
+  listingInfo: { flex: 1 },
+  listingName: { fontSize: 15, fontWeight: "700", color: "#111827", lineHeight: 20 },
+  listingAddr: { fontSize: 12, color: "#6B7280", flex: 1 },
+  viewDetailRow: { flexDirection: "row", alignItems: "center", marginTop: 6, gap: 2 },
+  viewDetailText: { fontSize: 12, color: "#00A67E", fontWeight: "600" },
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 14 },
+  cardBody: { padding: 14, gap: 6 },
+  infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  infoText: { fontSize: 14, color: "#374151", flex: 1 },
   bold: { fontWeight: "bold", color: "#111827" },
-  actions: { flexDirection: "row", justifyContent: "flex-end", gap: 12 },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    padding: 14,
+    paddingTop: 0,
+  },
   btn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 16,
     borderRadius: 8,
     gap: 6,
   },
-  rejectBtn: {
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FEE2E2",
-  },
-  rejectBtnText: { color: "#EF4444", fontWeight: "bold" },
+  rejectBtn: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FEE2E2" },
+  rejectBtnText: { color: "#EF4444", fontWeight: "700" },
   approveBtn: { backgroundColor: "#00A67E" },
-  approveBtnText: { color: "#fff", fontWeight: "bold" },
+  approveBtnText: { color: "#fff", fontWeight: "700" },
 });
