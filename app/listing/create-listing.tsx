@@ -499,11 +499,36 @@ export default function CreateListingScreen() {
       return Alert.alert('Lỗi', 'Đơn giá phải lớn hơn 0!');
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startCheck = new Date(allowedStartTime);
+    startCheck.setHours(0, 0, 0, 0);
 
+    if (startCheck < today) {
+      if (Platform.OS === 'web') return window.alert('Thời gian bắt đầu không được ở quá khứ!');
+      return Alert.alert('Lỗi', 'Thời gian bắt đầu không được ở quá khứ!');
+    }
 
     if (new Date(allowedEndTime) <= new Date(allowedStartTime)) {
       if (Platform.OS === 'web') return window.alert('Thời gian kết thúc phải sau thời gian bắt đầu!');
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
+    }
+
+    const startD = new Date(allowedStartTime);
+    const endD = new Date(allowedEndTime);
+    const durationDays = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 3600 * 24));
+
+    if (priceUnit === 'PerWeek' && durationDays < 7) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Tuần", khoảng thời gian hiệu lực phải ít nhất 7 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tuần", khoảng thời gian hiệu lực phải ít nhất 7 ngày.');
+    }
+    if (priceUnit === 'PerMonth' && durationDays < 30) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Tháng", khoảng thời gian hiệu lực phải ít nhất 30 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tháng", khoảng thời gian hiệu lực phải ít nhất 30 ngày.');
+    }
+    if (priceUnit === 'PerYear' && durationDays < 365) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Năm", khoảng thời gian hiệu lực phải ít nhất 365 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Năm", khoảng thời gian hiệu lực phải ít nhất 365 ngày.');
     }
 
     if (priorityLevelId === '') {
