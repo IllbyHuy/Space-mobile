@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallback } from 'react';
+import { getPriceUnitText } from '../../utils/formatPriceUnit';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
 
@@ -120,7 +121,7 @@ export default function MyListingsScreen() {
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         <View>
           <Text style={styles.title} numberOfLines={2}>{item.name || item.title || 'Tin đăng không tên'}</Text>
-          <Text style={styles.detail}><Feather name="dollar-sign" size={14} color="#6B7280" /> {item.price?.toLocaleString('vi-VN') || 0} VND / tháng</Text>
+          <Text style={styles.detail}><Feather name="dollar-sign" size={14} color="#6B7280" /> {item.price?.toLocaleString('vi-VN') || 0} đ{getPriceUnitText(item.priceUnit)}</Text>
           <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>

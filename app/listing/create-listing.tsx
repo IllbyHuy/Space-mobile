@@ -282,6 +282,7 @@ export default function CreateListingScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
+  const [priceUnit, setPriceUnit] = useState('PerHour');
   const [listingType, setListingType] = useState<0 | 1>(0);
   const [maxRenters, setMaxRenters] = useState('');
   const [availableSlots, setAvailableSlots] = useState('');
@@ -498,11 +499,36 @@ export default function CreateListingScreen() {
       return Alert.alert('Lỗi', 'Đơn giá phải lớn hơn 0!');
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startCheck = new Date(allowedStartTime);
+    startCheck.setHours(0, 0, 0, 0);
 
+    if (startCheck < today) {
+      if (Platform.OS === 'web') return window.alert('Thời gian bắt đầu không được ở quá khứ!');
+      return Alert.alert('Lỗi', 'Thời gian bắt đầu không được ở quá khứ!');
+    }
 
     if (new Date(allowedEndTime) <= new Date(allowedStartTime)) {
       if (Platform.OS === 'web') return window.alert('Thời gian kết thúc phải sau thời gian bắt đầu!');
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
+    }
+
+    const startD = new Date(allowedStartTime);
+    const endD = new Date(allowedEndTime);
+    const durationDays = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 3600 * 24));
+
+    if (priceUnit === 'PerWeek' && durationDays < 7) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Tuần", khoảng thời gian hiệu lực phải ít nhất 7 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tuần", khoảng thời gian hiệu lực phải ít nhất 7 ngày.');
+    }
+    if (priceUnit === 'PerMonth' && durationDays < 30) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Tháng", khoảng thời gian hiệu lực phải ít nhất 30 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tháng", khoảng thời gian hiệu lực phải ít nhất 30 ngày.');
+    }
+    if (priceUnit === 'PerYear' && durationDays < 365) {
+      if (Platform.OS === 'web') return window.alert('Để chọn đơn vị "/ Năm", khoảng thời gian hiệu lực phải ít nhất 365 ngày.');
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Năm", khoảng thời gian hiệu lực phải ít nhất 365 ngày.');
     }
 
     if (priorityLevelId === '') {
@@ -573,6 +599,7 @@ export default function CreateListingScreen() {
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
+      priceUnit,
       listingPictures: [],
     };
 
@@ -871,7 +898,7 @@ export default function CreateListingScreen() {
 
         {/* Giá */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Đơn giá (VND/tháng) *</Text>
+          <Text style={styles.label}>Đơn giá (VND) *</Text>
           <TextInput
             style={styles.input}
             placeholder="VD: 5000000"
@@ -884,6 +911,28 @@ export default function CreateListingScreen() {
               = {Number(price).toLocaleString('vi-VN')} VNĐ
             </Text>
           ) : null}
+        </View>
+
+        {/* Đơn vị tính */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Đơn vị tính *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+            {[
+              { id: 'PerHour', name: '/ Giờ' },
+              { id: 'PerDay', name: '/ Ngày' },
+              { id: 'PerWeek', name: '/ Tuần' },
+              { id: 'PerMonth', name: '/ Tháng' },
+              { id: 'PerYear', name: '/ Năm' }
+            ].map(unit => (
+              <TouchableOpacity
+                key={unit.id}
+                style={[styles.typeBtn, priceUnit === unit.id && styles.typeBtnActive, { marginRight: 8, paddingHorizontal: 16 }]}
+                onPress={() => setPriceUnit(unit.id)}
+              >
+                <Text style={[styles.typeBtnText, priceUnit === unit.id && styles.typeBtnTextActive]}>{unit.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Thời gian hiệu lực */}
