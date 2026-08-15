@@ -454,6 +454,20 @@ export default function EditListingScreen() {
       return Alert.alert('Lỗi', 'Thời gian kết thúc phải sau thời gian bắt đầu!');
     }
 
+    const startD = new Date(allowedStartTime);
+    const endD = new Date(allowedEndTime);
+    const durationDays = Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 3600 * 24));
+
+    if (priceUnit === 'PerWeek' && durationDays < 7) {
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tuần", khoảng thời gian hiệu lực phải ít nhất 7 ngày.');
+    }
+    if (priceUnit === 'PerMonth' && durationDays < 30) {
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Tháng", khoảng thời gian hiệu lực phải ít nhất 30 ngày.');
+    }
+    if (priceUnit === 'PerYear' && durationDays < 365) {
+      return Alert.alert('Lỗi', 'Để chọn đơn vị "/ Năm", khoảng thời gian hiệu lực phải ít nhất 365 ngày.');
+    }
+
     if (listingType === 1) {
       if (!maxRenters || parseInt(maxRenters) <= 0) {
         return Alert.alert('Lỗi', 'Số lượng người tối đa phải lớn hơn 0!');
