@@ -157,6 +157,7 @@ export default function AuthScreen() {
       if (isLoginMode || showOtpForm) {
         if (data.accessToken) {
           await AsyncStorage.setItem('portal_token', data.accessToken);
+          await AsyncStorage.setItem('portal_email', email);
         }
         
         const messageStr = data.message || '';

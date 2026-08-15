@@ -6,6 +6,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomNavBar } from '@/components/BottomNavBar';
 
+const maskEmail = (email: string) => {
+  if (!email || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local.substring(0, 2)}***@${domain}`;
+};
+
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -77,7 +86,8 @@ export default function ProfileScreen() {
 
   // BẮT LỖI TÊN BIẾN (Chơi bao lô cả viết hoa lẫn viết thường)
   const fullName = userProfile?.profileFullName || userProfile?.ProfileFullName || userProfile?.userName || userProfile?.UserName || 'Người dùng mới';
-  const emailStr = userProfile?.email || userProfile?.Email || 'Đang cập nhật email';
+  const rawEmail = userProfile?.email || userProfile?.Email;
+  const emailStr = rawEmail ? maskEmail(rawEmail) : 'Đang cập nhật email';
   const roleStr = userProfile?.role || userProfile?.Role;
   const avatarUrl = userProfile?.profileAvatarUrl || userProfile?.ProfileAvatarUrl;
   const shortName = fullName.substring(0, 2).toUpperCase();
@@ -135,14 +145,13 @@ export default function ProfileScreen() {
               <MenuItem icon="user" title="Hồ sơ cá nhân" onPress={() => router.push('/user-profile')} />
               <MenuItem icon="file-text" title="Hợp đồng của tôi" onPress={() => router.push('/my-contracts')} />
               <MenuItem icon="upload" title="Hợp đồng tải lên" onPress={() => router.push('/uploaded-contracts')} />
-              <MenuItem icon="calendar" title="Quản lý lịch hẹn" onPress={() => notifyComingSoon('Quản lý lịch hẹn')} />
               <MenuItem icon="credit-card" title="Ví & Thanh toán" onPress={() => router.push('/wallet')} />
             </View>
 
             <Text style={styles.sectionLabel}>Hệ thống</Text>
             <View style={styles.card}>
-              <MenuItem icon="settings" title="Cài đặt" onPress={() => notifyComingSoon('Cài đặt')} />
-              <MenuItem icon="help-circle" title="Trợ giúp & Hỗ trợ" onPress={() => notifyComingSoon('Trợ giúp & Hỗ trợ')} />
+              <MenuItem icon="key" title="Thay đổi mật khẩu" onPress={() => router.push('/change-password')} />
+              <MenuItem icon="unlock" title="Quên mật khẩu" onPress={() => router.push('/forgot-password')} />
             </View>
             
             <View style={[styles.card, { marginTop: 16 }]}>

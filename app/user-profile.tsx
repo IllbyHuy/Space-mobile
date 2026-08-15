@@ -25,6 +25,15 @@ interface ProfileData {
   socialLink: string | null;
 }
 
+const maskEmail = (email: string) => {
+  if (!email || !email.includes('@')) return email;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local.substring(0, 2)}***@${domain}`;
+};
+
 const formatDate = (value?: string | null): string => {
   if (!value || value === EMPTY_DATE) return PLACEHOLDER;
   const date = new Date(value);
@@ -97,7 +106,7 @@ export default function UserProfileScreen() {
 
   const infoRows: [string, string][] = [
     ['Họ và tên', profile?.fullName || storedName || PLACEHOLDER],
-    ['Email', userEmail],
+    ['Email', userEmail !== PLACEHOLDER ? maskEmail(userEmail) : PLACEHOLDER],
     ['Số điện thoại', userPhone],
     ['Giới tính', profile?.gender || PLACEHOLDER],
     ['Ngày sinh', formatDate(profile?.dob)],
