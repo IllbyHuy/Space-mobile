@@ -82,6 +82,7 @@ export default function ListingDetailScreen() {
   const [bookingNote, setBookingNote] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [businessCategories, setBusinessCategories] = useState<any[]>([]);
   // Default to tomorrow to pass backend validation
   const [bookingStartDate, setBookingStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -97,7 +98,7 @@ export default function ListingDetailScreen() {
         setToken(storedToken);
         setCurrentUserId(storedUserId);
 
-        const [spaceRes, listingRes] = await Promise.all([
+        const [spaceRes, listingRes, catRes] = await Promise.all([
           fetch(
             "https://flexi-space-capstone-project.onrender.com/api/Space/GetAll",
             { headers: { accept: "*/*" } },
@@ -106,7 +107,16 @@ export default function ListingDetailScreen() {
             "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll",
             { headers: { accept: "*/*" } },
           ),
+          fetch(
+            "https://flexi-space-capstone-project.onrender.com/api/BussinessCategory/GetAll",
+            { headers: { accept: "*/*" } },
+          ),
         ]);
+
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          setBusinessCategories(Array.isArray(catData) ? catData : catData?.data || []);
+        }
 
         let spaces: any[] = [];
         if (spaceRes.ok) spaces = await spaceRes.json();
@@ -391,7 +401,17 @@ export default function ListingDetailScreen() {
   const activeAmenities =
     listing.amenities?.filter((a: any) => a.isActive !== false) || [];
   const operatingHours = listing.operatingHours || [];
-  const allowedCategories = listing.allowedCategories || [];
+  const rawAllowedCategories = listing.allowedCategories || [];
+  const allowedCategories = rawAllowedCategories
+    .map((cat: any) => {
+      const catId = cat?.bussinessCategoryId ?? cat?.businessCategoryId ?? cat?.categoryId;
+      const found = businessCategories.find((c: any) => c.id === catId || c.Id === catId);
+      return {
+        ...cat,
+        name: cat.name || cat.categoryName || found?.name || found?.Name || (catId ? `Ngành ${catId}` : null),
+      };
+    })
+    .filter((cat: any) => cat.name);
 
   return (
     <View style={styles.container}>
