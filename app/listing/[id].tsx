@@ -162,8 +162,6 @@ export default function ListingDetailScreen() {
                   parentSpace?.location ||
                   "",
                 amenities: found.amenities || parentSpace?.amenities || [],
-                operatingHours:
-                  found.operatingHours || parentSpace?.operatingHours || [],
                 allowedCategories:
                   found.spaceAllowedCategories ||
                   parentSpace?.spaceAllowedCategories ||
@@ -403,10 +401,7 @@ export default function ListingDetailScreen() {
 
   const activeAmenities =
     listing.amenities?.filter((a: any) => a.isActive !== false) || [];
-  const operatingHours = listing.operatingHours || [];
-  const rawAllowedCategories = listing.allowedCategories || [];
-  const allowedCategories = rawAllowedCategories
-    .map((cat: any) => {
+  const allowedCategories = (listing.spaceAllowedCategories || []).map((cat: any) => {
       const catId = cat?.bussinessCategoryId ?? cat?.businessCategoryId ?? cat?.categoryId;
       const found = businessCategories.find((c: any) => c.id === catId || c.Id === catId);
       return {
@@ -580,41 +575,6 @@ export default function ListingDetailScreen() {
                   return (
                     <View key={idx} style={styles.categoryBadge}>
                       <Text style={styles.categoryText}>{label}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* 8. GIỜ HOẠT ĐỘNG */}
-          {operatingHours.length > 0 && (
-            <View style={styles.descSection}>
-              <Text style={styles.sectionTitle}>Giờ hoạt động</Text>
-              <View style={styles.hoursBox}>
-                {DAY_ORDER.map((day, idx) => {
-                  const entry = operatingHours.find(
-                    (h: any) => h.dayOfWeek === day,
-                  );
-                  return (
-                    <View
-                      key={day}
-                      style={[
-                        styles.hourRow,
-                        idx === DAY_ORDER.length - 1 && {
-                          borderBottomWidth: 0,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.hourDay}>{DAY_LABELS[day]}</Text>
-                      {entry ? (
-                        <Text style={styles.hourTime}>
-                          {formatTime(entry.openTime)} -{" "}
-                          {formatTime(entry.closeTime)}
-                        </Text>
-                      ) : (
-                        <Text style={styles.hourClosed}>Đóng cửa</Text>
-                      )}
                     </View>
                   );
                 })}

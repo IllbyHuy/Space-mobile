@@ -60,17 +60,6 @@ export default function CreateSpacePartScreen() {
   const [apiCategories, setApiCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | "">("");
 
-  // Operating hours
-  const [isFullWeek, setIsFullWeek] = useState(true);
-  const [operatingHours, setOperatingHours] = useState(
-    DAYS_OF_WEEK.map((day) => ({
-      dayOfWeek: day.id,
-      enabled: day.id !== 0,
-      openTime: "08:00",
-      closeTime: "22:00",
-    })),
-  );
-
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   useEffect(() => {
@@ -152,16 +141,6 @@ export default function CreateSpacePartScreen() {
     );
   };
 
-  const toggleDay = (dayOfWeek: number) => {
-    setOperatingHours((prev) =>
-      prev.map((item) =>
-        item.dayOfWeek === dayOfWeek
-          ? { ...item, enabled: !item.enabled }
-          : item,
-      ),
-    );
-  };
-
   const handleSubmit = async () => {
     if (!name.trim() || !area.trim()) {
       return Alert.alert("Lỗi", "Vui lòng điền đủ tên và diện tích!");
@@ -195,21 +174,6 @@ export default function CreateSpacePartScreen() {
         quantity: 1,
         isActive: true,
       })),
-      operatingHours: isFullWeek
-        ? DAYS_OF_WEEK.map((h) => ({
-            dayOfWeek: h.id === 7 ? 0 : h.id,
-            openTime: "08:00:00",
-            closeTime: "22:00:00",
-          }))
-        : operatingHours
-            .filter((h) => h.enabled)
-            .map((h) => ({
-              dayOfWeek: h.dayOfWeek === 7 ? 0 : h.dayOfWeek,
-              openTime:
-                h.openTime.length === 5 ? `${h.openTime}:00` : h.openTime,
-              closeTime:
-                h.closeTime.length === 5 ? `${h.closeTime}:00` : h.closeTime,
-            })),
       spaceAllowedCategories:
         selectedCategoryId !== ""
           ? [{ bussinessCategoryId: Number(selectedCategoryId) }]
@@ -345,113 +309,6 @@ export default function CreateSpacePartScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>Giờ hoạt động (Tuỳ chọn)</Text>
-        <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 12 }}>
-          Chọn "Cả tuần" để hoạt động tất cả các ngày (08:00 - 22:00) hoặc "Tuỳ
-          chỉnh"
-        </Text>
-        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-          <TouchableOpacity
-            style={[
-              styles.pickerBtn,
-              { flex: 1, height: 44, justifyContent: "center" },
-              isFullWeek && {
-                borderColor: "#00A67E",
-                borderWidth: 2,
-                backgroundColor: "#E6F6F2",
-              },
-            ]}
-            onPress={() => setIsFullWeek(true)}
-          >
-            <Text
-              style={[
-                styles.pickerText,
-                { textAlign: "center" },
-                isFullWeek && { color: "#00A67E", fontWeight: "bold" },
-              ]}
-            >
-              Cả tuần
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.pickerBtn,
-              { flex: 1, height: 44, justifyContent: "center" },
-              !isFullWeek && {
-                borderColor: "#00A67E",
-                borderWidth: 2,
-                backgroundColor: "#E6F6F2",
-              },
-            ]}
-            onPress={() => setIsFullWeek(false)}
-          >
-            <Text
-              style={[
-                styles.pickerText,
-                { textAlign: "center" },
-                !isFullWeek && { color: "#00A67E", fontWeight: "bold" },
-              ]}
-            >
-              Tuỳ chỉnh
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {!isFullWeek &&
-          operatingHours.map((item) => {
-            const dayInfo = DAYS_OF_WEEK.find((d) => d.id === item.dayOfWeek);
-            return (
-              <View key={item.dayOfWeek} style={styles.dayRow}>
-                <View style={styles.dayToggle}>
-                  <Switch
-                    value={item.enabled}
-                    onValueChange={() => toggleDay(item.dayOfWeek)}
-                    trackColor={{ false: "#D1D5DB", true: "#86EFAC" }}
-                    thumbColor={item.enabled ? "#00A67E" : "#F3F4F6"}
-                  />
-                  <Text
-                    style={[
-                      styles.dayLabel,
-                      !item.enabled && { color: "#9CA3AF" },
-                    ]}
-                  >
-                    {dayInfo?.label}
-                  </Text>
-                </View>
-                {item.enabled && (
-                  <View style={styles.timeRow}>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={item.openTime}
-                      onChangeText={(val) =>
-                        setOperatingHours((prev) =>
-                          prev.map((h) =>
-                            h.dayOfWeek === item.dayOfWeek
-                              ? { ...h, openTime: val }
-                              : h,
-                          ),
-                        )
-                      }
-                    />
-                    <Text style={styles.timeSep}>—</Text>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={item.closeTime}
-                      onChangeText={(val) =>
-                        setOperatingHours((prev) =>
-                          prev.map((h) =>
-                            h.dayOfWeek === item.dayOfWeek
-                              ? { ...h, closeTime: val }
-                              : h,
-                          ),
-                        )
-                      }
-                    />
-                  </View>
-                )}
-              </View>
-            );
-          })}
 
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
