@@ -134,10 +134,17 @@ export default function MySpacesScreen() {
 
             <TouchableOpacity 
               style={[styles.actionBtn, { backgroundColor: '#E0F2FE', marginTop: 12, width: '100%' }]}
-              onPress={() => router.push({
-                pathname: '/listing/space-parts',
-                params: { parentSpaceId: item.id || item.Id, parentSpaceName: item.name }
-              })}
+              onPress={() => {
+                const spaceOwnerId = String(item.ownerId || item.OwnerId || '');
+                if (spaceOwnerId && currentUserId !== spaceOwnerId) {
+                  Alert.alert('Lỗi', 'Bạn không có quyền chia nhỏ space được lấy từ người chủ');
+                  return;
+                }
+                router.push({
+                  pathname: '/listing/space-parts',
+                  params: { parentSpaceId: item.id || item.Id, parentSpaceName: item.name }
+                })
+              }}
             >
               <Feather name="grid" size={16} color="#0369A1" />
               <Text style={{ color: '#0369A1', fontWeight: 'bold', marginLeft: 6 }}>Quản lý không gian chia nhỏ</Text>
