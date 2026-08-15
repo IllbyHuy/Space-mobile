@@ -462,7 +462,12 @@ export default function ContractCreateScreen() {
           const errText = await createRes.text().catch(() => '');
           console.error('[Contract/Create] error:', createRes.status, errText);
           let errMsg = 'Tạo hợp đồng thất bại';
-          try { const e = JSON.parse(errText); errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); } catch { }
+          try { 
+            const e = JSON.parse(errText); 
+            errMsg = e.message || e.title || e.detail || JSON.stringify(e.errors || e); 
+          } catch { 
+            if (errText) errMsg = errText;
+          }
           throw new Error(errMsg);
         }
 
