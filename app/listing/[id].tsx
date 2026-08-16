@@ -172,6 +172,33 @@ export default function ListingDetailScreen() {
               if (parentSpace) {
                 merged._spaceOwnerId = parentSpace.ownerId || parentSpace.OwnerId || parentSpace.creatorId || parentSpace.createdBy;
               }
+              
+              // Increment view count if not owner
+              const ownerId = merged._spaceOwnerId || found.ownerId || found.OwnerId || found.creatorId || found.createdBy;
+              if (String(ownerId) !== String(storedUserId)) {
+                try {
+                  const viewRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/Listing/ViewCount/${found.id || found.Id}`, {
+                    method: 'PATCH',
+                    headers: { 
+                      accept: '*/*',
+                      ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {})
+                    }
+                  });
+                  if (viewRes.ok) {
+                    const viewData = await viewRes.json();
+                    const newViewCount = viewData?.viewCount ?? viewData?.ViewCount ?? viewData?.data?.viewCount ?? viewData?.data?.ViewCount ?? viewData?.listing?.viewCount ?? viewData?.listing?.ViewCount;
+                    if (newViewCount !== undefined && newViewCount !== null) {
+                      merged.viewCount = newViewCount;
+                      merged.ViewCount = newViewCount;
+                    } else {
+                      merged.viewCount = (merged.viewCount || merged.ViewCount || 0) + 1;
+                    }
+                  }
+                } catch(e) {
+                  console.log('Error updating view count', e);
+                }
+              }
+
               setListing(merged);
               if (merged.price) setBookingOfferedPrice(merged.price.toString());
             }
@@ -615,13 +642,17 @@ export default function ListingDetailScreen() {
                   {listing.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : 'Sau 30 ngày'}
                 </Text>
               </View>
-              <View style={{ width: '48%' }}>
+              <View style={{ width: '48%', marginBottom: 16 }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="hash" size={12} /> Mã tin</Text>
                 <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>#{listing.id || listing.Id}</Text>
               </View>
-              <View style={{ width: '48%' }}>
+              <View style={{ width: '48%', marginBottom: 16 }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12} /> Tình trạng</Text>
                 <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
+              </View>
+              <View style={{ width: '48%' }}>
+                <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="eye" size={12} /> Lượt xem</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.viewCount ?? listing.ViewCount ?? 0}</Text>
               </View>
             </View>
           </View>

@@ -173,6 +173,7 @@ export default function MyListingsScreen() {
           <Text style={styles.title} numberOfLines={2}>{item.name || item.title || 'Tin đăng không tên'}</Text>
           <Text style={styles.detail}><Feather name="dollar-sign" size={14} color="#6B7280" /> {item.price?.toLocaleString('vi-VN') || 0} đ{getPriceUnitText(item.priceUnit)}</Text>
           <Text style={styles.detail}><Feather name="clock" size={14} color="#6B7280" /> {item.allowedStartTime} - {item.allowedEndTime}</Text>
+          <Text style={styles.detail}><Feather name="eye" size={14} color="#6B7280" /> {item.viewCount ?? item.ViewCount ?? 0} lượt xem</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
