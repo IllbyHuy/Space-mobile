@@ -136,7 +136,7 @@ export default function MySpacesScreen() {
             </View>
 
             <TouchableOpacity 
-              style={[styles.actionBtn, { backgroundColor: '#E0F2FE', marginTop: 12, width: '100%' }]}
+              style={[styles.actionBtn, { backgroundColor: '#E0F2FE', marginTop: 12, width: '100%', paddingHorizontal: 12 }]}
               onPress={() => {
                 const spaceOwnerId = String(item.ownerId || item.OwnerId || '');
                 if (spaceOwnerId && currentUserId !== spaceOwnerId) {
@@ -151,7 +151,13 @@ export default function MySpacesScreen() {
               }}
             >
               <Feather name="grid" size={16} color="#0369A1" />
-              <Text style={{ color: '#0369A1', fontWeight: 'bold', marginLeft: 6 }}>Quản lý không gian chia nhỏ</Text>
+              <Text 
+                style={{ color: '#0369A1', fontWeight: 'bold', marginLeft: 6, flex: 1 }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                Quản lý không gian chia nhỏ
+              </Text>
             </TouchableOpacity>
           </View>
         )}
