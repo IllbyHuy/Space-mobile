@@ -253,6 +253,15 @@ export default function CreateListingScreen() {
   const [priorityLevels, setPriorityLevels] = useState<any[]>([]);
   const [priorityLevelId, setPriorityLevelId] = useState<number | ''>('');
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [bannerPriorityLevels, setBannerPriorityLevels] = useState<any[]>([]);
+  const [bannerPriorityLevelId, setBannerPriorityLevelId] = useState<number | ''>('');
+  const [showBannerPriorityPicker, setShowBannerPriorityPicker] = useState(false);
+  
+  const [createBannerWithListing, setCreateBannerWithListing] = useState(false);
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerDescription, setBannerDescription] = useState('');
+  const [bannerImages, setBannerImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
+
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const [isLegalCommitted, setIsLegalCommitted] = useState(false);
@@ -322,9 +331,12 @@ export default function CreateListingScreen() {
             const text = await prioRes.text();
             const prioData = text ? JSON.parse(text) : [];
             const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
-            const activePrio = pList.filter((p: any) => p.isActive);
+            const activePrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() !== 'banner');
+            const activeBannerPrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() === 'banner');
             setPriorityLevels(activePrio);
             if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
+            setBannerPriorityLevels(activeBannerPrio);
+            if (activeBannerPrio.length > 0) setBannerPriorityLevelId(activeBannerPrio[0].id);
           } catch (e) { }
         }
 
@@ -495,6 +507,72 @@ export default function CreateListingScreen() {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const pickBannerImage = async () => {
+    if (Platform.OS === 'web') {
+      const useCamera = window.confirm("Bạn muốn chụp ảnh mới? (OK = Chụp ảnh, Cancel = Chọn từ thư viện)");
+      if (useCamera) {
+        let result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setBannerImages((prev) => [...prev, ...result.assets]);
+        }
+      } else {
+        let result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsMultipleSelection: true,
+          quality: 0.8,
+        });
+        if (!result.canceled) {
+          setBannerImages((prev) => [...prev, ...result.assets]);
+        }
+      }
+    } else {
+      Alert.alert(
+        "Thêm ảnh Banner",
+        "Chọn nguồn ảnh",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Chụp ảnh", onPress: async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert("Lỗi", "Cần cấp quyền camera để chụp ảnh!");
+                return;
+              }
+              let result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setBannerImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          },
+          {
+            text: "Chọn từ thư viện", onPress: async () => {
+              let result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+              if (!result.canceled) {
+                setBannerImages((prev) => [...prev, ...result.assets]);
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  const removeBannerImage = (index: number) => {
+    setBannerImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (spaceId === '') {
       if (Platform.OS === 'web') return window.alert('Vui lòng chọn mặt bằng!');
@@ -549,10 +627,26 @@ export default function CreateListingScreen() {
       if (Platform.OS === 'web') return window.alert('Vui lòng chọn gói bài đăng!');
       return Alert.alert('Lỗi', 'Vui lòng chọn gói bài đăng!');
     }
+    if (createBannerWithListing && bannerPriorityLevelId === '') {
+      if (Platform.OS === 'web') return window.alert('Vui lòng chọn gói banner!');
+      return Alert.alert('Lỗi', 'Vui lòng chọn gói banner!');
+    }
+    if (createBannerWithListing && !bannerTitle.trim()) {
+      if (Platform.OS === 'web') return window.alert('Vui lòng nhập tiêu đề banner!');
+      return Alert.alert('Lỗi', 'Vui lòng nhập tiêu đề banner!');
+    }
+    if (createBannerWithListing && !bannerDescription.trim()) {
+      if (Platform.OS === 'web') return window.alert('Vui lòng nhập mô tả banner!');
+      return Alert.alert('Lỗi', 'Vui lòng nhập mô tả banner!');
+    }
+
     const chosenPackagePrice = priorityLevels.find(p => p.id === priorityLevelId)?.price ?? 0;
-    if (walletBalance !== null && walletBalance < chosenPackagePrice) {
-      if (Platform.OS === 'web') return window.alert(`Số dư ví không đủ để đăng tin! Cần ${chosenPackagePrice.toLocaleString('vi-VN')} VNĐ.`);
-      return Alert.alert('Lỗi', `Số dư ví không đủ để đăng tin! Cần ${chosenPackagePrice.toLocaleString('vi-VN')} VNĐ.`);
+    const bannerPackagePrice = createBannerWithListing ? (bannerPriorityLevels.find(p => p.id === bannerPriorityLevelId)?.price ?? 0) : 0;
+    const totalPublishPrice = chosenPackagePrice + bannerPackagePrice;
+
+    if (walletBalance !== null && walletBalance < totalPublishPrice) {
+      if (Platform.OS === 'web') return window.alert(`Số dư ví không đủ để đăng tin! Cần ${totalPublishPrice.toLocaleString('vi-VN')} VNĐ.`);
+      return Alert.alert('Lỗi', `Số dư ví không đủ để đăng tin! Cần ${totalPublishPrice.toLocaleString('vi-VN')} VNĐ.`);
     }
 
     if (listingType === 1) {
@@ -711,6 +805,91 @@ export default function CreateListingScreen() {
           }
           Alert.alert('Cảnh báo', 'Tạo bài đăng thành công nhưng tải ảnh lên thất bại!', [{ text: 'OK', onPress: () => router.back() }]);
           return;
+        }
+      }
+
+      // BANNER LOGIC
+      if (createBannerWithListing && createdListingId) {
+        const selectedBannerPackage = bannerPriorityLevels.find(p => p.id === bannerPriorityLevelId);
+        const bannerDuration = selectedBannerPackage?.durationInDays ?? 0;
+        const bannerPrice = selectedBannerPackage?.price ?? 0;
+        const bannerParams = new URLSearchParams({
+          durationInDays: String(bannerDuration),
+          price: String(bannerPrice)
+        });
+        const bannerPayload = {
+          title: bannerTitle.trim(),
+          description: bannerDescription.trim(),
+          listingId: Number(createdListingId)
+        };
+        const bannerRes = await fetch(`${API_BASE}/api/Banner/CreateForUser?${bannerParams.toString()}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'accept': '*/*'
+          },
+          body: JSON.stringify(bannerPayload)
+        });
+
+        if (!bannerRes.ok) {
+          console.error('Lỗi tạo banner', await bannerRes.text().catch(() => ''));
+          if (Platform.OS === 'web') {
+            window.alert('Tạo bài đăng thành công nhưng tạo banner thất bại!');
+            router.back();
+            return;
+          }
+          Alert.alert('Cảnh báo', 'Tạo bài đăng thành công nhưng tạo banner thất bại!', [{ text: 'OK', onPress: () => router.back() }]);
+          return;
+        }
+
+        const bannerText = await bannerRes.text();
+        let createdBannerId;
+        try {
+          const bData = JSON.parse(bannerText);
+          createdBannerId = bData.id || bData.bannerId || bData.data?.id || bData.data?.bannerId || bannerText;
+        } catch {
+          createdBannerId = bannerText;
+        }
+
+        if (bannerImages.length > 0 && createdBannerId) {
+          const bFormData = new FormData();
+          for (let i = 0; i < bannerImages.length; i++) {
+            const img = bannerImages[i];
+            if (Platform.OS === 'web') {
+              const fetchRes = await fetch(img.uri);
+              const blob = await fetchRes.blob();
+              bFormData.append('file', blob, img.fileName || `banner_${i}.jpg`);
+            } else {
+              const filename = img.fileName || img.uri.split('/').pop() || `banner_${i}.jpg`;
+              const type = img.mimeType || 'image/jpeg';
+              bFormData.append('file', {
+                uri: img.uri,
+                name: filename,
+                type,
+              } as any);
+            }
+          }
+          bFormData.append('bannerId', createdBannerId.toString());
+
+          const bPicRes = await fetch(`${API_BASE}/api/Picture`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              accept: '*/*',
+            },
+            body: bFormData,
+          });
+          if (!bPicRes.ok) {
+            console.error('Lỗi up ảnh banner', await bPicRes.text().catch(() => ''));
+            if (Platform.OS === 'web') {
+              window.alert('Tạo bài đăng & banner thành công nhưng tải ảnh banner thất bại!');
+              router.back();
+              return;
+            }
+            Alert.alert('Cảnh báo', 'Tạo bài đăng & banner thành công nhưng tải ảnh banner thất bại!', [{ text: 'OK', onPress: () => router.back() }]);
+            return;
+          }
         }
       }
 
@@ -1038,6 +1217,69 @@ export default function CreateListingScreen() {
           <Feather name="external-link" size={24} color="#0369A1" />
         </TouchableOpacity>
 
+        {/* Tạo Banner Quảng Cáo */}
+        <View style={styles.inputGroup}>
+          <CustomCheckbox 
+            label="Tạo Banner quảng cáo cho bài đăng này" 
+            value={createBannerWithListing} 
+            onValueChange={setCreateBannerWithListing} 
+          />
+        </View>
+
+        {createBannerWithListing && (
+          <View style={{ backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 }}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Gói Banner *</Text>
+              <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowBannerPriorityPicker(true)}>
+                <Text style={bannerPriorityLevelId !== '' ? styles.pickerText : styles.pickerPlaceholder}>
+                  {bannerPriorityLevelId !== '' ? (bannerPriorityLevels.find(p => p.id === bannerPriorityLevelId)?.name + ' - ' + bannerPriorityLevels.find(p => p.id === bannerPriorityLevelId)?.price.toLocaleString('vi-VN') + ' VNĐ') : '-- Chọn gói Banner --'}
+                </Text>
+                <Feather name="chevron-down" size={18} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Tiêu đề banner *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="VD: Căn hộ siêu rẻ trung tâm Q1"
+                value={bannerTitle}
+                onChangeText={setBannerTitle}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mô tả banner *</Text>
+              <TextInput
+                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                placeholder="VD: Đầy đủ nội thất, view đẹp, dọn vào ở ngay..."
+                value={bannerDescription}
+                onChangeText={setBannerDescription}
+                multiline
+              />
+            </View>
+
+            <Text style={styles.sectionTitle}>Hình ảnh banner (Tùy chọn)</Text>
+            <TouchableOpacity style={styles.pickImageBtn} onPress={pickBannerImage}>
+              <Feather name="image" size={20} color="#00A67E" />
+              <Text style={styles.pickImageText}>Chọn ảnh làm Banner</Text>
+            </TouchableOpacity>
+
+            {bannerImages.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+                {bannerImages.map((img, idx) => (
+                  <View key={`banner-${idx}`} style={styles.imagePreviewWrapper}>
+                    <Image source={{ uri: img.uri }} style={[styles.imagePreview, { width: 120, height: 60 }]} resizeMode="cover" />
+                    <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeBannerImage(idx)}>
+                      <Feather name="x" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
         {/* Hình ảnh */}
         <Text style={styles.sectionTitle}>Hình ảnh bài đăng (Tùy chọn)</Text>
         <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
@@ -1100,6 +1342,42 @@ export default function CreateListingScreen() {
               ListEmptyComponent={
                 <View style={{ padding: 20, alignItems: 'center' }}>
                   <Text style={{ color: '#6B7280' }}>Không có gói nào khả dụng</Text>
+                </View>
+              }
+              style={{ maxHeight: 400 }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Banner Priority Picker Modal */}
+      <Modal visible={showBannerPriorityPicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn gói Banner</Text>
+              <TouchableOpacity onPress={() => setShowBannerPriorityPicker(false)}>
+                <Feather name="x" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={bannerPriorityLevels}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setBannerPriorityLevelId(item.id);
+                    setShowBannerPriorityPicker(false);
+                  }}
+                >
+                  <Text style={styles.modalItemTitle}>{item.name}</Text>
+                  <Text style={styles.modalItemSub}>{item.price.toLocaleString('vi-VN')} VNĐ</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#6B7280' }}>Không có gói banner nào khả dụng</Text>
                 </View>
               }
               style={{ maxHeight: 400 }}
