@@ -179,7 +179,7 @@ export default function MyListingsScreen() {
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             <View style={[styles.statusBadge, item.status === 'published' ? styles.statusActive : styles.statusDraft, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
               <Text style={[styles.statusText, item.status === 'published' ? styles.statusActiveText : styles.statusDraftText, { fontSize: 10 }]}>
-                {item.status === 'published' ? 'Đang hoạt động' : item.status || 'Bản nháp'}
+                {item.status === 'published' ? 'Đang hoạt động' : (item.status === 'Occupied' || String(item.status) === '1' ? 'Đã được ký' : item.status || 'Bản nháp')}
               </Text>
             </View>
             <View style={[styles.statusBadge, (item.listingType === 'SharedSpace' || item.listingType === 1) ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }, { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>

@@ -136,7 +136,7 @@ export default function SpacePartsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+        <Text style={[styles.headerTitle, { flex: 1, marginHorizontal: 12, textAlign: 'center' }]} numberOfLines={1} ellipsizeMode="tail">
           Không gian nhỏ của {parentSpaceName || 'Mặt bằng'}
         </Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => router.push({ pathname: '/listing/create-space-part', params: { parentSpaceId } })}>

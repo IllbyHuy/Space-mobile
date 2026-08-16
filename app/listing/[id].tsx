@@ -130,10 +130,27 @@ export default function ListingDetailScreen() {
               ? listingData
               : listingData?.data || listingData?.items || [];
 
-            const found = safeData.find(
+            let found = safeData.find(
               (item: any) =>
                 item.id?.toString() === id || item.Id?.toString() === id,
             );
+
+            if (!found) {
+              const occRes = await fetch(
+                "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll?status=Occupied",
+                { headers: { accept: "*/*" } },
+              );
+              if (occRes.ok) {
+                const occData = await occRes.json();
+                const safeOccData = Array.isArray(occData)
+                  ? occData
+                  : occData?.data || occData?.items || [];
+                found = safeOccData.find(
+                  (item: any) =>
+                    item.id?.toString() === id || item.Id?.toString() === id,
+                );
+              }
+            }
 
             if (found) {
               let parentSpace = spaces.find(
@@ -648,7 +665,7 @@ export default function ListingDetailScreen() {
               </View>
               <View style={{ width: '48%', marginBottom: 16 }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12} /> Tình trạng</Text>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : (listing.status === 'Occupied' || String(listing.status) === '1' ? 'Đã được ký' : listing.status)}</Text>
               </View>
               <View style={{ width: '48%' }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="eye" size={12} /> Lượt xem</Text>
@@ -765,9 +782,15 @@ export default function ListingDetailScreen() {
               <TouchableOpacity style={[styles.bookBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={handleContactPress}>
                 <Text style={[styles.bookBtnText, { color: '#00A67E' }]}>Chat ngay</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.bookBtn, { flex: 1 }]} onPress={() => setIsBookingModalOpen(true)}>
-                <Text style={styles.bookBtnText}>Yêu cầu</Text>
-              </TouchableOpacity>
+              {listing?.status !== "Occupied" && String(listing?.status) !== "1" ? (
+                <TouchableOpacity style={[styles.bookBtn, { flex: 1 }]} onPress={() => setIsBookingModalOpen(true)}>
+                  <Text style={styles.bookBtnText}>Yêu cầu</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.bookBtn, { flex: 1, backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', borderWidth: 1 }]}>
+                  <Text style={[styles.bookBtnText, { color: '#DC2626', fontSize: 13, textAlign: 'center' }]}>Đã được ký</Text>
+                </View>
+              )}
             </View>
           </View>
         );

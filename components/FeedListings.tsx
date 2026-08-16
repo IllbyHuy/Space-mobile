@@ -166,19 +166,33 @@ export const FeedListings = ({
             };
           });
 
-          setListings(safeData.reverse());
-        }
+          // Fetch banners before filtering safeData so we can check listing status
+          if (bannerRes.ok) {
+            const bannerData = await bannerRes.json();
+            let rawBanners = unwrapApiList(bannerData);
+            rawBanners.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+            
+            rawBanners = rawBanners.map((b: any) => {
+              const associatedListing = safeData.find((l: any) => l.id === b.listingId || l.Id === b.listingId);
+              if (associatedListing) {
+                b.listingStatus = associatedListing.status ?? associatedListing.Status;
+              }
+              return b;
+            });
 
-        if (bannerRes.ok) {
-          const bannerData = await bannerRes.json();
-          let rawBanners = unwrapApiList(bannerData);
-          // Sort by Order
-          rawBanners.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-          setBanners(
-            rawBanners.filter(
-              (b) => b.title || b.description || b.bannerPictures,
-            ),
-          );
+            setBanners(
+              rawBanners.filter(
+                (b: any) => (b.title || b.description || b.bannerPictures) && b.listingStatus !== 'Occupied' && String(b.listingStatus) !== '1'
+              )
+            );
+          } else {
+             setBanners([]);
+          }
+
+          // Filter out occupied listings
+          safeData = safeData.filter((item: any) => item.status !== 'Occupied' && String(item.status) !== '1' && item.Status !== 'Occupied' && String(item.Status) !== '1');
+
+          setListings(safeData.reverse());
         }
 
         if (storedToken) {
