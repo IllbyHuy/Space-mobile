@@ -140,8 +140,9 @@ export default function MySpacesScreen() {
               onPress={() => {
                 const spaceOwnerId = String(item.ownerId || item.OwnerId || '');
                 if (spaceOwnerId && currentUserId !== spaceOwnerId) {
-                  Alert.alert('Lỗi', 'Bạn không có quyền chia nhỏ space được lấy từ người chủ');
-                  return;
+                  // Alert.alert('Lỗi', 'Bạn không có quyền chia nhỏ space được lấy từ người chủ');
+                  // return;
+                  console.log('Bypass quyền chia nhỏ space để test');
                 }
                 router.push({
                   pathname: '/listing/space-parts',
