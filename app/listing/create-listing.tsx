@@ -1277,6 +1277,34 @@ export default function CreateListingScreen() {
                 ))}
               </ScrollView>
             )}
+
+            <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Xem trước banner</Text>
+            <View style={{
+              borderRadius: 8,
+              overflow: 'hidden',
+              backgroundColor: '#111827',
+              height: 120,
+              position: 'relative',
+              marginTop: 8
+            }}>
+              {bannerImages.length > 0 ? (
+                <Image
+                  source={{ uri: bannerImages[0].uri }}
+                  style={{ width: '100%', height: '100%', opacity: 0.6 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={{ width: '100%', height: '100%', backgroundColor: '#374151', opacity: 0.6 }} />
+              )}
+              <View style={{ position: 'absolute', bottom: 12, left: 12, right: 12 }}>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }} numberOfLines={1}>
+                  {bannerTitle || name || 'Banner của bạn'}
+                </Text>
+                <Text style={{ color: '#E5E7EB', fontSize: 13, marginTop: 4 }} numberOfLines={2}>
+                  {bannerDescription || description || 'Nội dung banner sẽ hiển thị tại đây trước khi tạo.'}
+                </Text>
+              </View>
+            </View>
           </View>
         )}
 
