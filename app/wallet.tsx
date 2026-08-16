@@ -12,6 +12,7 @@ export default function WalletScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [account, setAccount] = useState<WalletAccount | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +30,21 @@ export default function WalletScreen() {
       if (!res.ok) throw new Error('Không thể tải thông tin ví. Vui lòng thử lại.');
       setAccount(await res.json());
       setError('');
+
+      try {
+        const histRes = await fetch(`${API_BASE}/api/TransactionHistory/GetAllTransactionHistoryByUserId`, {
+          headers: { Authorization: `Bearer ${token}`, accept: '*/*' }
+        });
+        if (histRes.ok) {
+          const histData = await histRes.json();
+          const sorted = Array.isArray(histData) ? histData.sort((a, b) => b.id - a.id) : [];
+          setTransactions(sorted);
+        } else {
+          setTransactions([]);
+        }
+      } catch (e) {
+        setTransactions([]);
+      }
     } catch (err: any) {
       setError(err.message || 'Không thể tải thông tin ví.');
     } finally {
@@ -84,11 +100,33 @@ export default function WalletScreen() {
               <Text style={styles.depositBtnText}>Nạp tiền vào ví</Text>
             </TouchableOpacity>
 
-            <View style={styles.historyPlaceholder}>
-              <Feather name="clock" size={32} color="#D1D5DB" />
-              <Text style={styles.historyTitle}>Lịch sử giao dịch</Text>
-              <Text style={styles.historyText}>Tính năng đang được phát triển.</Text>
-            </View>
+            <Text style={styles.historyTitle}>Lịch sử giao dịch</Text>
+            {transactions.length === 0 ? (
+              <View style={styles.historyPlaceholder}>
+                <Feather name="clock" size={32} color="#D1D5DB" />
+                <Text style={styles.historyText}>Chưa có giao dịch nào.</Text>
+              </View>
+            ) : (
+              <View style={styles.txnList}>
+                {transactions.map((txn) => {
+                  const isCredit = txn.transactionAmount >= 0;
+                  return (
+                    <View key={txn.id} style={styles.txnItem}>
+                      <View style={[styles.txnIconWrap, { backgroundColor: isCredit ? '#D1FAE5' : '#FEE2E2' }]}>
+                        <Feather name={isCredit ? 'arrow-down-left' : 'arrow-up-right'} size={20} color={isCredit ? '#059669' : '#DC2626'} />
+                      </View>
+                      <View style={{ flex: 1, marginHorizontal: 12 }}>
+                        <Text style={styles.txnItemTitle}>{txn.description || (isCredit ? 'Nạp tiền' : 'Thanh toán')}</Text>
+                        <Text style={styles.txnDate}>{new Date(txn.createdAt || txn.transactionDate).toLocaleString('vi-VN')}</Text>
+                      </View>
+                      <Text style={[styles.txnAmount, { color: isCredit ? '#059669' : '#DC2626' }]}>
+                        {isCredit ? '+' : ''}{formatVnd(txn.transactionAmount)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -128,4 +166,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#FECACA'
   },
   errorText: { color: '#E02424', fontSize: 13, flex: 1 },
+  txnList: { marginTop: 12, gap: 12 },
+  txnItem: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
+    padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB'
+  },
+  txnIconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  txnItemTitle: { fontSize: 15, fontWeight: '600', color: '#1F2937', marginBottom: 4 },
+  txnDate: { fontSize: 12, color: '#6B7280' },
+  txnAmount: { fontSize: 15, fontWeight: 'bold' },
 });
