@@ -182,7 +182,7 @@ export const FeedListings = ({
 
             setBanners(
               rawBanners.filter(
-                (b: any) => (b.title || b.description || b.bannerPictures) && b.listingStatus !== 'Occupied' && b.listingStatus !== 1
+                (b: any) => (b.title || b.description || b.bannerPictures) && b.listingStatus !== 'Occupied' && String(b.listingStatus) !== '1'
               )
             );
           } else {
@@ -190,7 +190,7 @@ export const FeedListings = ({
           }
 
           // Filter out occupied listings
-          safeData = safeData.filter((item: any) => item.status !== 'Occupied' && item.status !== 1 && item.Status !== 'Occupied' && item.Status !== 1);
+          safeData = safeData.filter((item: any) => item.status !== 'Occupied' && String(item.status) !== '1' && item.Status !== 'Occupied' && String(item.Status) !== '1');
 
           setListings(safeData.reverse());
         }

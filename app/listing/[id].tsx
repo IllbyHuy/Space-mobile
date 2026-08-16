@@ -665,7 +665,7 @@ export default function ListingDetailScreen() {
               </View>
               <View style={{ width: '48%', marginBottom: 16 }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="info" size={12} /> Tình trạng</Text>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : listing.status}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#333' }}>{listing.status === 'published' ? 'Đang hoạt động' : (listing.status === 'Occupied' || String(listing.status) === '1' ? 'Đã được ký' : listing.status)}</Text>
               </View>
               <View style={{ width: '48%' }}>
                 <Text style={{ color: '#777', fontSize: 12, marginBottom: 4 }}><Feather name="eye" size={12} /> Lượt xem</Text>
@@ -782,7 +782,7 @@ export default function ListingDetailScreen() {
               <TouchableOpacity style={[styles.bookBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={handleContactPress}>
                 <Text style={[styles.bookBtnText, { color: '#00A67E' }]}>Chat ngay</Text>
               </TouchableOpacity>
-              {listing?.status !== "Occupied" && listing?.status !== 1 ? (
+              {listing?.status !== "Occupied" && String(listing?.status) !== "1" ? (
                 <TouchableOpacity style={[styles.bookBtn, { flex: 1 }]} onPress={() => setIsBookingModalOpen(true)}>
                   <Text style={styles.bookBtnText}>Yêu cầu</Text>
                 </TouchableOpacity>
