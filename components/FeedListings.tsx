@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -95,6 +95,9 @@ export const FeedListings = ({
   const [refreshing, setRefreshing] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const bannerScrollRef = useRef<ScrollView>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
   const screenWidth = Dimensions.get("window").width;
 
@@ -565,16 +568,88 @@ export const FeedListings = ({
     filteredListings = [...filteredListings].sort((a, b) => (b.price || 0) - (a.price || 0));
   }
 
+  // Promotional banners always appended after API banners
+  const PROMO_BANNERS = [
+    {
+      id: 'promo-pricing',
+      title: 'Nâng cấp gói hiển thị',
+      description: 'Tăng khả năng tiếp cận với gói bài đăng ưu tiên & banner quảng cáo.',
+      bgColor: '#1E3A5F',
+      icon: 'zap',
+      onPress: () => router.push('/pricing' as any),
+      imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800',
+    },
+    {
+      id: 'promo-ai',
+      title: 'AI Chỉnh Sửa Ảnh',
+      description: 'Biến đổi không gian của bạn bằng AI: tô vùng & thêm vật thể.',
+      bgColor: '#064E3B',
+      icon: 'aperture',
+      onPress: () => router.push('/ai-explanation' as any),
+      imageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?auto=format&fit=crop&q=80&w=800',
+    },
+  ];
+
+  const allBannerItems: any[] = [
+    ...banners.map(b => ({ ...b, _type: 'api' })),
+    ...PROMO_BANNERS.map(p => ({ ...p, _type: 'promo' })),
+  ];
+
   const renderHeader = () => {
-    if (banners.length === 0) return null;
+    if (allBannerItems.length === 0) return null;
+
+    const startAutoplay = () => {
+      if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
+      bannerTimerRef.current = setInterval(() => {
+        setCurrentBannerIndex(prev => {
+          const next = (prev + 1) % allBannerItems.length;
+          bannerScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+          return next;
+        });
+      }, 3500);
+    };
+
     return (
       <View style={styles.bannerContainer}>
         <ScrollView
+          ref={bannerScrollRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
+          onLayout={() => startAutoplay()}
+          onScrollBeginDrag={() => {
+            if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
+          }}
+          onScrollEndDrag={() => startAutoplay()}
+          onMomentumScrollEnd={e => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+            setCurrentBannerIndex(idx);
+          }}
         >
-          {banners.map((b: any, idx: number) => {
+          {allBannerItems.map((b: any, idx: number) => {
+            if (b._type === 'promo') {
+              return (
+                <TouchableOpacity
+                  key={b.id}
+                  activeOpacity={0.9}
+                  onPress={b.onPress}
+                  style={{ width: screenWidth }}
+                >
+                  <Image source={{ uri: b.imageUrl }} style={[styles.bannerImage, { opacity: 0.6 }]} />
+                  <View style={[styles.bannerContent, { backgroundColor: b.bgColor + 'CC' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Feather name={b.icon} size={18} color="#00d4a0" />
+                      <Text style={[styles.bannerTitle, { color: '#fff', fontSize: 16 }]}>{b.title}</Text>
+                    </View>
+                    <Text style={styles.bannerDesc} numberOfLines={2}>{b.description}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                      <Text style={{ color: '#00d4a0', fontSize: 13, fontWeight: '700' }}>Khám phá ngay</Text>
+                      <Feather name="arrow-right" size={13} color="#00d4a0" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
             const imgUrl = getBannerImageUrl(b);
             return (
               <TouchableOpacity
@@ -599,14 +674,30 @@ export const FeedListings = ({
                     {b.title || "Ưu đãi mặt bằng"}
                   </Text>
                   <Text style={styles.bannerDesc} numberOfLines={2}>
-                    {b.description ||
-                      "Khám phá không gian kinh doanh tuyệt vời"}
+                    {b.description || "Khám phá không gian kinh doanh tuyệt vời"}
                   </Text>
                 </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
+        {/* Dot Indicators */}
+        <View style={styles.dotsContainer}>
+          {allBannerItems.map((_, idx) => (
+            <TouchableOpacity
+              key={idx}
+              onPress={() => {
+                bannerScrollRef.current?.scrollTo({ x: idx * screenWidth, animated: true });
+                setCurrentBannerIndex(idx);
+              }}
+            >
+              <View style={[
+                styles.dot,
+                currentBannerIndex === idx && styles.dotActive,
+              ]} />
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
     );
   };
@@ -704,7 +795,7 @@ const styles = StyleSheet.create({
   bannerImage: { width: "100%", height: "100%", resizeMode: "cover" },
   bannerContent: {
     position: "absolute",
-    bottom: 20,
+    bottom: 32,
     left: 20,
     right: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -718,4 +809,26 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bannerDesc: { color: "#eee", fontSize: 13 },
+  dotsContainer: {
+    position: "absolute",
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  dotActive: {
+    width: 18,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#00d4a0",
+  },
 });
