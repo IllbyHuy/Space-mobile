@@ -230,14 +230,32 @@ export default function ChatScreen() {
         }
         connectionRef.current = globalConnection;
         setConnection(globalConnection);
-      } catch (error) {
-        console.error(error);
+      } catch (error: any) {
+        console.log("Chat connection failed:", error?.message || error);
+        const errStr = String(error?.message || error);
+        if (errStr.includes("401") && (global as any).reloginTrick) {
+          console.log("Chat detected 401, trying trick relogin...");
+          const newToken = await (global as any).reloginTrick();
+          if (newToken) {
+            setToken(newToken); // Update state to trigger useEffect re-run with new token
+          } else {
+             // If trick fails, redirect to login
+             AsyncStorage.multiRemove(['portal_token', 'portal_email', 'portal_password', 'current_user_id']);
+             router.replace('/login');
+          }
+        }
       }
     };
     initGlobalChat();
 
     return () => {
-      if (globalConnection) globalConnection.stop();
+      if (globalConnection) {
+        try {
+          globalConnection.stop().catch((e) => console.log('Stop connection error:', e));
+        } catch (error) {
+          console.log('Sync stop error:', error);
+        }
+      }
       connectionRef.current = null;
       joinedRoomIdsRef.current.clear();
     };
@@ -478,21 +496,17 @@ export default function ChatScreen() {
               <TouchableOpacity onPress={() => setShowRequestPopup(true)} style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, marginRight: 8 }}>
                 <Feather name="info" size={20} color="#fff" />
               </TouchableOpacity>
-              {!isLessor && (
+              {!isLessor && (listingId || activeChat?.listingId || activeChat?.ListingId) ? (
                 <TouchableOpacity
                   onPress={() => {
                     const targetListingId = listingId || activeChat?.listingId || activeChat?.ListingId;
-                    if (targetListingId) {
-                      router.push(`/listing/${targetListingId}?openBooking=true` as any);
-                    } else {
-                      Alert.alert("Lỗi", "Không tìm thấy thông tin mặt bằng. Vui lòng quay lại trang chi tiết mặt bằng để tạo yêu cầu.");
-                    }
+                    router.push(`/listing/${targetListingId}?openBooking=true` as any);
                   }}
                   style={{ padding: 8, backgroundColor: '#3b82f6', borderRadius: 8, marginRight: 8 }}
                 >
                   <Feather name="clipboard" size={20} color="#fff" />
                 </TouchableOpacity>
-              )}
+              ) : null}
               {isLessor && (
                 <TouchableOpacity
                   onPress={() => setShowContractOptions(true)}

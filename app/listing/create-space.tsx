@@ -13,6 +13,7 @@ import {
   FlatList,
   Platform,
   Image,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -58,6 +59,7 @@ export default function CreateSpaceScreen() {
   const [area, setArea] = useState("");
 
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [existingImages, setExistingImages] = useState<any[]>([]);
 
   // original city string when editing
   const [originalCity, setOriginalCity] = useState("");
@@ -81,6 +83,15 @@ export default function CreateSpaceScreen() {
 
   // Amenities
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [customAmenity, setCustomAmenity] = useState("");
+
+  const addCustomAmenity = () => {
+    const val = customAmenity.trim();
+    if (val && !selectedAmenities.includes(val)) {
+      setSelectedAmenities([...selectedAmenities, val]);
+    }
+    setCustomAmenity("");
+  };
 
   // Business categories
   const [apiCategories, setApiCategories] = useState<any[]>([]);
@@ -156,6 +167,33 @@ export default function CreateSpaceScreen() {
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const removeExistingImage = async (index: number) => {
+    const imgToRemove = existingImages[index];
+    const publicId = imgToRemove?.publicId || imgToRemove?.id || imgToRemove;
+
+    if (publicId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/Picture/${publicId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "*/*",
+          },
+        });
+
+        if (res.ok) {
+          setExistingImages((prev) => prev.filter((_, i) => i !== index));
+        } else {
+          Alert.alert("Lỗi", "Không thể xóa ảnh này trên hệ thống!");
+        }
+      } catch (err) {
+        Alert.alert("Lỗi", "Đã xảy ra lỗi khi xóa ảnh");
+      }
+    } else if (typeof imgToRemove === 'string') {
+      setExistingImages((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
   useEffect(() => {
     const loadAuth = async () => {
       const tk = await AsyncStorage.getItem("portal_token");
@@ -229,6 +267,14 @@ export default function CreateSpaceScreen() {
             setSelectedCategoryId(
               data.spaceAllowedCategories[0].bussinessCategoryId,
             );
+          }
+
+          if (data.pictureURLs && Array.isArray(data.pictureURLs)) {
+             setExistingImages(data.pictureURLs);
+          } else if (data.pictures && Array.isArray(data.pictures)) {
+             setExistingImages(data.pictures);
+          } else if (data.spacePictures && Array.isArray(data.spacePictures)) {
+             setExistingImages(data.spacePictures);
           }
         }
       } catch (err) {
@@ -537,11 +583,16 @@ export default function CreateSpaceScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* === THÔNG TIN CƠ BẢN === */}
         <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
 
@@ -672,6 +723,34 @@ export default function CreateSpaceScreen() {
               </TouchableOpacity>
             );
           })}
+          {selectedAmenities.filter(a => !AMENITIES_IDS.includes(a)).map((custom) => (
+            <TouchableOpacity
+              key={custom}
+              style={[styles.amenityChip, styles.amenityChipActive]}
+              onPress={() => toggleAmenity(custom)}
+            >
+              <Feather name="check-square" size={16} color="#00A67E" />
+              <Text style={[styles.amenityText, styles.amenityTextActive]}>
+                {custom}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', marginTop: 12 }]}>
+          <TextInput
+            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            placeholder="Nhập tiện ích khác..."
+            value={customAmenity}
+            onChangeText={setCustomAmenity}
+            onSubmitEditing={addCustomAmenity}
+          />
+          <TouchableOpacity 
+            style={{ marginLeft: 8, backgroundColor: '#00A67E', padding: 12, borderRadius: 8 }}
+            onPress={addCustomAmenity}
+          >
+            <Feather name="plus" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         {/* === NGÀNH NGHỀ === */}
@@ -704,10 +783,21 @@ export default function CreateSpaceScreen() {
           <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
         </TouchableOpacity>
 
-        {selectedImages.length > 0 && (
+        {(existingImages.length > 0 || selectedImages.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+            {existingImages.map((img, idx) => {
+              const url = typeof img === 'string' ? img : (img.imageUrl || img.url || img.pictureUrl);
+              return (
+                <View key={`existing-${idx}`} style={styles.imagePreviewWrapper}>
+                  <Image source={{ uri: url }} style={styles.imagePreview} />
+                  <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeExistingImage(idx)}>
+                    <Feather name="x" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
             {selectedImages.map((img, idx) => (
-              <View key={idx} style={styles.imagePreviewWrapper}>
+              <View key={`new-${idx}`} style={styles.imagePreviewWrapper}>
                 <Image source={{ uri: img.uri }} style={styles.imagePreview} />
                 <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
                   <Feather name="x" size={14} color="#fff" />
@@ -732,6 +822,7 @@ export default function CreateSpaceScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Picker Modals */}
       {renderPickerModal(

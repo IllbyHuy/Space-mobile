@@ -95,16 +95,16 @@ export default function MySpacesScreen() {
           )}
           <View style={[styles.cardInfo, { marginLeft: 12 }]}>
             <Text style={styles.spaceTitle}>{item.name}</Text>
-            <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}</Text>
+            <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}{item.city ? `, ${item.city}` : ''}</Text>
             <Text style={styles.spaceDetail}><Feather name="maximize" size={14} color="#6B7280" /> {item.area || item.acreage || 0} m²</Text>
           </View>
           <View style={styles.cardStatus}>
-            <View style={[styles.statusBadge, item.status === 'Available' ? styles.statusAvailable : styles.statusPending]}>
-              <Text style={[styles.statusText, item.status === 'Available' ? styles.statusAvailableText : styles.statusPendingText]}>
-                {item.status === 'Available' ? 'Trống' : item.status || 'Đang xử lý'}
-              </Text>
-            </View>
-            <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" style={{ marginTop: 8 }} />
+            {item.status === 'Available' && (
+              <View style={[styles.statusBadge, styles.statusAvailable]}>
+                <Text style={[styles.statusText, styles.statusAvailableText]}>Trống</Text>
+              </View>
+            )}
+            <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" style={{ marginTop: item.status === 'Available' ? 8 : 0 }} />
           </View>
         </View>
         {expanded && (

@@ -307,20 +307,7 @@ export default function MyContractsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryValue}>{tenants.length}</Text>
-          <Text style={styles.summaryLabel}>Tổng người thuê</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryValue, { color: '#00A67E' }]}>{(totalRevenue / 1000000).toFixed(1)}tr₫</Text>
-          <Text style={styles.summaryLabel}>Doanh thu/tháng</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Text style={[styles.summaryValue, { color: '#D97706' }]}>{needsAttentionCount}</Text>
-          <Text style={styles.summaryLabel}>Cần chú ý</Text>
-        </View>
-      </View>
+
 
       <View style={styles.searchBox}>
         <Feather name="search" size={16} color="#9CA3AF" />

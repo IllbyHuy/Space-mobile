@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { useRouter, Stack, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API_BASE = 'https://flexi-space-capstone-project.onrender.com';
+
+const getPicUrl = (url: string) => {
+  if (!url) return 'https://placehold.co/400x300.png?text=No+Image';
+  return url.startsWith('http') ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 export default function SpacePartsScreen() {
   const router = useRouter();
@@ -60,7 +65,7 @@ export default function SpacePartsScreen() {
         onPress: async () => {
           try {
             const targetId = item.id || item.Id;
-            const res = await fetch(`${API_BASE}/api/SpacePart/${targetId}`, {
+            const res = await fetch(`${API_BASE}/api/SpacePart/Delete/${targetId}`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` }
             });
@@ -81,21 +86,32 @@ export default function SpacePartsScreen() {
   const SpaceCard = ({ item }: { item: any }) => {
     const [expanded, setExpanded] = useState(false);
     
+    const pic = item.pictureURLs?.[0] || item.spacePictures?.[0] || item.pictures?.[0];
+    const rawPicUrl = pic ? (typeof pic === 'string' ? pic : (pic.imageUrl || pic.url || pic.pictureUrl)) : null;
+    const finalPicUrl = getPicUrl(rawPicUrl || '');
+
     return (
       <TouchableOpacity style={styles.card} onPress={() => setExpanded(!expanded)} activeOpacity={0.8}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={styles.cardInfo}>
-            <Text style={styles.spaceTitle}>{item.name}</Text>
-            <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}</Text>
-            <Text style={styles.spaceDetail}><Feather name="maximize" size={14} color="#6B7280" /> {item.area || item.acreage || 0} m²</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', flex: 1, paddingRight: 12 }}>
+            <Image 
+              source={{ uri: finalPicUrl }}
+              style={{ width: 70, height: 70, borderRadius: 8, marginRight: 12, backgroundColor: '#E5E7EB' }}
+              resizeMode="cover"
+            />
+            <View style={styles.cardInfo}>
+              <Text style={styles.spaceTitle}>{item.name}</Text>
+              <Text style={styles.spaceDetail}><Feather name="map-pin" size={14} color="#6B7280" /> {item.address || 'Đang cập nhật địa chỉ'}{item.city ? `, ${item.city}` : ''}</Text>
+              <Text style={styles.spaceDetail}><Feather name="maximize" size={14} color="#6B7280" /> {item.area || item.acreage || 0} m²</Text>
+            </View>
           </View>
           <View style={styles.cardStatus}>
-            <View style={[styles.statusBadge, item.status === 'Available' ? styles.statusAvailable : styles.statusPending]}>
-              <Text style={[styles.statusText, item.status === 'Available' ? styles.statusAvailableText : styles.statusPendingText]}>
-                {item.status === 'Available' ? 'Trống' : item.status || 'Đang xử lý'}
-              </Text>
-            </View>
-            <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" style={{ marginTop: 8 }} />
+            {item.status === 'Available' && (
+              <View style={[styles.statusBadge, styles.statusAvailable]}>
+                <Text style={[styles.statusText, styles.statusAvailableText]}>Trống</Text>
+              </View>
+            )}
+            <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9CA3AF" style={{ marginTop: item.status === 'Available' ? 8 : 0 }} />
           </View>
         </View>
         {expanded && (
@@ -108,8 +124,8 @@ export default function SpacePartsScreen() {
             </Text>
             <View style={styles.actionsRow}>
               <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: '#F3F4F6' }]} // We don't have Edit yet
-                onPress={() => Alert.alert('Thông báo', 'Tính năng sửa mặt bằng đang được cập nhật')}
+                style={[styles.actionBtn, { backgroundColor: '#F3F4F6' }]}
+                onPress={() => router.push({ pathname: '/listing/create-space-part', params: { parentSpaceId, id: item.id } })}
               >
                 <Feather name="edit" size={16} color="#4B5563" />
                 <Text style={{ color: '#4B5563', fontWeight: '500', marginLeft: 4 }}>Sửa</Text>

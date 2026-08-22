@@ -26,6 +26,17 @@ const { width } = Dimensions.get("window");
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1556761175-5973dc0f32d7?auto=format&fit=crop&q=80&w=800";
 
+// LÝ DO BÁO CÁO
+const REPORT_REASONS = [
+  { value: 'ScamOrFraud', label: 'Lừa đảo / Gian lận' },
+  { value: 'FakeInformation', label: 'Thông tin giả mạo' },
+  { value: 'PriceMismatch', label: 'Giá không đúng thực tế' },
+  { value: 'FakeAddress', label: 'Địa chỉ không chính xác' },
+  { value: 'InappropriateContent', label: 'Nội dung không phù hợp' },
+  { value: 'WrongCategory', label: 'Sai danh mục' },
+  { value: 'Other', label: 'Lý do khác' },
+];
+
 // Logic ánh xạ ngày và giờ (bê từ Web sang)
 const DAY_LABELS: Record<number, string> = {
   0: "Chủ Nhật",
@@ -77,12 +88,19 @@ export default function ListingDetailScreen() {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingOfferedPrice, setBookingOfferedPrice] = useState("");
   const [bookingDuration, setBookingDuration] = useState("1");
-  const [bookingDurationUnit, setBookingDurationUnit] = useState("Months"); // Web default
+  const [bookingDurationUnit, setBookingDurationUnit] = useState("Months");
   const [bookingPurpose, setBookingPurpose] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
   const [businessCategories, setBusinessCategories] = useState<any[]>([]);
+  // Report states
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportReasons, setReportReasons] = useState<string[]>([]);
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSuccess, setReportSuccess] = useState(false);
+  const [isSpacePartModalOpen, setIsSpacePartModalOpen] = useState(false);
   // Default to tomorrow to pass backend validation
   const [bookingStartDate, setBookingStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1);
@@ -157,38 +175,58 @@ export default function ListingDetailScreen() {
                 (s: any) => String(s.id || s.Id) === String(found.spaceId || found.SpaceId),
               );
               let isSpacePart = false;
+              let fetchedSpacePart: any = null;
 
               if (!parentSpace) {
                 // Try to fetch space part info
                 try {
-                  const spRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${found.spaceId || found.SpaceId}`);
+                  const spRes = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${found.spaceId || found.SpaceId}`, {
+                    headers: storedToken ? { Authorization: `Bearer ${storedToken}`, accept: '*/*' } : { accept: '*/*' }
+                  });
                   if (spRes.ok) {
-                    parentSpace = await spRes.json();
+                    fetchedSpacePart = await spRes.json();
                     isSpacePart = true;
                   }
                 } catch (e) { }
               }
 
+              const spaceOrPart = parentSpace || fetchedSpacePart;
+              const parentForOwner = isSpacePart && spaceOrPart?.parentSpaceId
+                ? spaces.find((s: any) => String(s.id || s.Id) === String(spaceOrPart.parentSpaceId))
+                : null;
+              
+              const _spaceOwnerId =
+                spaceOrPart?.ownerId || spaceOrPart?.createdBy || spaceOrPart?.OwnerId || spaceOrPart?.CreatedBy ||
+                parentForOwner?.ownerId || parentForOwner?.createdBy || parentForOwner?.OwnerId || parentForOwner?.CreatedBy ||
+                null;
+
+              let address = found.location || found.address || "";
+              let city = found.city || found.spaceCity || "";
+              if (isSpacePart && spaceOrPart?.parentSpaceId) {
+                const parent = spaces.find((s: any) => String(s.id || s.Id) === String(spaceOrPart.parentSpaceId));
+                if (parent && !address) {
+                  address = parent.address || parent.location || "";
+                  city = parent.city || "";
+                }
+              } else if (spaceOrPart && !address) {
+                address = spaceOrPart.address || spaceOrPart.location || "";
+                city = spaceOrPart.city || "";
+              }
+
               const merged = {
                 ...found,
-                area: found.area || parentSpace?.area || null,
-                address:
-                  found.location ||
-                  found.address ||
-                  parentSpace?.address ||
-                  parentSpace?.location ||
-                  "",
-                amenities: found.amenities || parentSpace?.amenities || [],
+                area: found.area || found.Area || spaceOrPart?.area || spaceOrPart?.Area || null,
+                address,
+                city,
+                amenities: found.amenities || spaceOrPart?.amenities || [],
                 allowedCategories:
                   found.spaceAllowedCategories ||
-                  parentSpace?.spaceAllowedCategories ||
+                  spaceOrPart?.spaceAllowedCategories ||
                   [],
                 isSpacePart,
+                _spaceOwnerId,
+                _spaceOrPartDetails: spaceOrPart, // Save for the modal
               };
-              // Store the parent space's ownerId for owner detection
-              if (parentSpace) {
-                merged._spaceOwnerId = parentSpace.ownerId || parentSpace.OwnerId || parentSpace.creatorId || parentSpace.createdBy;
-              }
               
               // Increment view count if not owner
               const ownerId = merged._spaceOwnerId || found.ownerId || found.OwnerId || found.creatorId || found.createdBy;
@@ -307,6 +345,69 @@ export default function ListingDetailScreen() {
       });
     } catch (err) {
       console.error("Lỗi chia sẻ:", err);
+    }
+  };
+
+  const handleOpenReport = () => {
+    if (!token) {
+      Alert.alert(
+        "Yêu cầu đăng nhập",
+        "Vui lòng đăng nhập để báo cáo bài đăng!",
+        [
+          { text: "Để sau", style: "cancel" },
+          { text: "Đăng nhập", onPress: () => router.push("/login") },
+        ],
+      );
+      return;
+    }
+    setReportReasons([]);
+    setReportDetails('');
+    setReportSuccess(false);
+    setIsReportModalOpen(true);
+  };
+
+  const toggleReportReason = (value: string) => {
+    setReportReasons(prev =>
+      prev.includes(value) ? prev.filter(r => r !== value) : [...prev, value]
+    );
+  };
+
+  const handleSubmitReport = async () => {
+    if (reportReasons.length === 0) {
+      Alert.alert("Thiếu thông tin", "Vui lòng chọn ít nhất một lý do báo cáo.");
+      return;
+    }
+    if (!token || !listing) return;
+    setIsSubmittingReport(true);
+    try {
+      const payload = {
+        listingId: Number(listing.id || listing.Id),
+        reasons: reportReasons,
+        additionalDetails: reportDetails,
+      };
+      const response = await fetch(
+        'https://flexi-space-capstone-project.onrender.com/api/Listing/Reports',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'accept': '*/*',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (response.ok) {
+        setReportSuccess(true);
+      } else {
+        const err = await response.json().catch(() => ({}));
+        Alert.alert("Lỗi", err.message || "Có lỗi xảy ra khi gửi báo cáo.");
+      }
+    } catch (error) {
+      console.error("Lỗi API Report:", error);
+      Alert.alert("Lỗi", "Không thể kết nối đến máy chủ.");
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -507,23 +608,40 @@ export default function ListingDetailScreen() {
           {/* 2. HEADER THÔNG TIN */}
           <View style={styles.titleSection}>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <View style={[styles.tagWrap, isHourly ? { backgroundColor: '#DBEAFE' } : { backgroundColor: '#ECFDF5' }]}>
-                <Text style={[styles.tagText, isHourly ? { color: '#1D4ED8' } : { color: '#047857' }]}>
-                  {isHourly ? "Chia sẻ chỗ" : "Thuê dài hạn"}
-                </Text>
-              </View>
-              {listing.isSpacePart && (
-                <View style={[styles.tagWrap, { backgroundColor: '#F3E8FF' }]}>
-                  <Text style={[styles.tagText, { color: '#7E22CE' }]}>Từ MB gốc</Text>
-                </View>
-              )}
+              {(() => {
+                let typeBadge = { label: 'Dài hạn', bg: '#F0FDF4', color: '#166534' };
+                const cIdBadge = listing.creatorId || listing.CreatorId;
+                if (listing.listingType === 'SharedSpace' && cIdBadge && listing._spaceOwnerId && String(cIdBadge) !== String(listing._spaceOwnerId)) {
+                  typeBadge = { label: 'Cho thuê lại', bg: '#FCE7F3', color: '#9D174D' };
+                } else if (listing.priceUnit === 'PerHour' || isHourly) {
+                  typeBadge = { label: 'Theo ca', bg: '#EEF2FF', color: '#3730A3' };
+                } else if (listing.listingType === 'SharedSpace') {
+                  typeBadge = { label: 'Chia sẻ', bg: '#EEF2FF', color: '#3730A3' };
+                }
+
+                let scopeBadge = { label: 'Nguyên căn', bg: '#ECFDF5', color: '#047857' };
+                if (listing.isSpacePart) {
+                  scopeBadge = { label: 'Diện tích chia nhỏ', bg: '#FEF9C3', color: '#854D0E' };
+                }
+
+                return (
+                  <>
+                    <View style={[styles.tagWrap, { backgroundColor: typeBadge.bg }]}>
+                      <Text style={[styles.tagText, { color: typeBadge.color }]}>{typeBadge.label}</Text>
+                    </View>
+                    <View style={[styles.tagWrap, { backgroundColor: scopeBadge.bg }]}>
+                      <Text style={[styles.tagText, { color: scopeBadge.color }]}>{scopeBadge.label}</Text>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
             <Text style={styles.title}>
               {listing.name || "Mặt bằng cho thuê"}
             </Text>
             <Text style={styles.location}>
               <Feather name="map-pin" size={14} color="#6B7280" />{" "}
-              {listing.address}
+              {listing.address}{listing.city ? `, ${listing.city}` : ""}
             </Text>
           </View>
 
@@ -571,6 +689,62 @@ export default function ListingDetailScreen() {
               </TouchableOpacity>
             </TouchableOpacity>
           )}
+
+          {/* TÌNH TRẠNG MẶT BẰNG VISUALIZER */}
+          <View style={styles.descSection}>
+            <Text style={styles.sectionTitle}>Tình trạng mặt bằng</Text>
+            <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 16 }}>
+              {listing.isSpacePart === true && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                  <Feather name="box" size={18} color="#D97706" style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#D97706', fontWeight: '600', fontSize: 13 }}>Bạn đang xem một phần diện tích chia nhỏ của mặt bằng gốc.</Text>
+
+                  </View>
+                </View>
+              )}
+              {(() => {
+                const cIdBadge = listing.creatorId || listing.CreatorId;
+                const isSublease = listing.listingType === 'SharedSpace' && cIdBadge && listing._spaceOwnerId && String(cIdBadge) !== String(listing._spaceOwnerId);
+                if (isSublease) {
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FCE7F3', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+                      <Feather name="shield" size={18} color="#BE185D" style={{ marginRight: 8 }} />
+                      <Text style={{ flex: 1, color: '#BE185D', fontWeight: '600', fontSize: 13 }}>Mặt bằng này đang được sang nhượng / cho thuê lại.</Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
+              {isHourly && listing.shareSpaceDetailAvailabilitiesTimes?.length > 0 ? (
+                <View>
+                  <Text style={{ fontSize: 13, color: '#475569', fontWeight: '500', marginBottom: 10 }}>Các ca chia sẻ hiện đang trống:</Text>
+                  {listing.shareSpaceDetailAvailabilitiesTimes.map((slot: any, idx: number) => {
+                    const formatToAmPm = (timeStr?: string) => {
+                      if (!timeStr) return '';
+                      const [h, m] = timeStr.split(':');
+                      const hh = parseInt(h, 10);
+                      const ampm = hh >= 12 ? 'PM' : 'AM';
+                      const hh12 = hh % 12 || 12;
+                      return `${hh12.toString().padStart(2, '0')}:${m} ${ampm}`;
+                    };
+                    const dayStr = slot.daysOfWeek?.length > 0 ? slot.daysOfWeek.join(', ') : (slot.specificdate ? new Date(slot.specificdate).toLocaleDateString('vi-VN') : 'Hôm nay');
+                    return (
+                      <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 }}>
+                        <Text style={{ fontWeight: '600', color: '#0F172A', fontSize: 13, flex: 1, flexWrap: 'wrap', marginRight: 8 }}>{dayStr}</Text>
+                        <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 13, flexShrink: 0 }}>{formatToAmPm(slot.startTime)} - {formatToAmPm(slot.endTime)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : !listing.isSpacePart ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5', padding: 12, borderRadius: 8 }}>
+                  <Feather name="check-circle" size={18} color="#047857" style={{ marginRight: 8 }} />
+                  <Text style={{ flex: 1, color: '#047857', fontWeight: '600', fontSize: 13 }}>Mặt bằng nguyên căn - Thuê toàn quyền sử dụng 24/7.</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
 
           {/* 5. MÔ TẢ */}
           <View style={styles.descSection}>
@@ -722,6 +896,18 @@ export default function ListingDetailScreen() {
               )}
             </View>
           </View>
+          {/* 10. NÚT BÁO CÁO */}
+          {!isOwner && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+              <TouchableOpacity
+                onPress={handleOpenReport}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF5F5' }}
+              >
+                <Feather name="flag" size={16} color="#DC2626" />
+                <Text style={{ color: '#DC2626', fontWeight: '600', fontSize: 14 }}>Báo cáo bài đăng vi phạm</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -795,6 +981,89 @@ export default function ListingDetailScreen() {
           </View>
         );
       })()}
+
+      {/* REPORT MODAL */}
+      <Modal
+        visible={isReportModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsReportModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom || 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Báo cáo bài đăng</Text>
+              <TouchableOpacity onPress={() => setIsReportModalOpen(false)}>
+                <Feather name="x" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+
+            {reportSuccess ? (
+              <View style={{ alignItems: 'center', padding: 32 }}>
+                <Feather name="check-circle" size={52} color="#00A67E" />
+                <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 16, marginBottom: 8 }}>Gửi báo cáo thành công!</Text>
+                <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 24 }}>Chúng tôi đã tiếp nhận và sẽ kiểm duyệt trong thời gian sớm nhất.</Text>
+                <TouchableOpacity
+                  style={[styles.bookBtn, { alignSelf: 'stretch' }]}
+                  onPress={() => setIsReportModalOpen(false)}
+                >
+                  <Text style={styles.bookBtnText}>Đóng</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={[styles.modalLabel, { marginBottom: 12 }]}>Chọn lý do vi phạm *</Text>
+                {REPORT_REASONS.map((reason) => {
+                  const selected = reportReasons.includes(reason.value);
+                  return (
+                    <TouchableOpacity
+                      key={reason.value}
+                      onPress={() => toggleReportReason(reason.value)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, marginBottom: 8,
+                        borderWidth: 1,
+                        borderColor: selected ? '#DC2626' : '#E5E7EB',
+                        backgroundColor: selected ? '#FEF2F2' : '#fff',
+                      }}
+                    >
+                      <View style={{
+                        width: 18, height: 18, borderRadius: 4, borderWidth: 2,
+                        borderColor: selected ? '#DC2626' : '#9CA3AF',
+                        backgroundColor: selected ? '#DC2626' : '#fff',
+                        marginRight: 10, alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        {selected && <Feather name="check" size={12} color="#fff" />}
+                      </View>
+                      <Text style={{ color: selected ? '#DC2626' : '#374151', fontWeight: selected ? '600' : '400' }}>
+                        {reason.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <Text style={[styles.modalLabel, { marginTop: 12 }]}>Chi tiết thêm (tùy chọn)</Text>
+                <TextInput
+                  style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                  placeholder="Mô tả thêm về vi phạm..."
+                  multiline
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                />
+
+                <TouchableOpacity
+                  style={[styles.bookBtn, { marginTop: 16, marginBottom: 8, opacity: isSubmittingReport ? 0.7 : 1, backgroundColor: '#DC2626' }]}
+                  onPress={handleSubmitReport}
+                  disabled={isSubmittingReport}
+                >
+                  <Text style={styles.bookBtnText}>
+                    {isSubmittingReport ? 'Đang gửi...' : 'Gửi báo cáo'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={isBookingModalOpen}
@@ -952,6 +1221,8 @@ export default function ListingDetailScreen() {
           </View>
         </View>
       </Modal>
+
+
     </View>
   );
 }

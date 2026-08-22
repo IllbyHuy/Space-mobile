@@ -14,6 +14,66 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+// --- TRICK LỎ: Auto relogin on 401 ---
+const originalFetch = global.fetch;
+let isRefreshing = false;
+
+(global as any).reloginTrick = async () => {
+  if (isRefreshing) return false;
+  isRefreshing = true;
+  try {
+    const email = await AsyncStorage.getItem('portal_email');
+    const pwd = await AsyncStorage.getItem('portal_password');
+    if (email && pwd) {
+      console.log("Trick lỏ: Auto relogin for", email);
+      const loginRes = await originalFetch("https://flexi-space-capstone-project.onrender.com/api/Auth/login", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pwd, turnstileToken: "bypass" })
+      });
+      if (loginRes.ok) {
+        const data = await loginRes.json();
+        if (data.accessToken) {
+          await AsyncStorage.setItem('portal_token', data.accessToken);
+          isRefreshing = false;
+          return data.accessToken;
+        }
+      }
+    }
+  } catch (err) {
+    console.log("Trick lỏ failed:", err);
+  }
+  isRefreshing = false;
+  return null;
+};
+
+global.fetch = async (input, init) => {
+  let response = await originalFetch(input, init);
+  
+  if (response.status === 401) {
+    console.log("Detected 401, triggering auto-relogin trick...");
+    const newToken = await (global as any).reloginTrick();
+    
+    if (newToken) {
+      console.log("Auto relogin success, retrying original request...");
+      const newInit = { ...init };
+      if (newInit.headers instanceof Headers) {
+        newInit.headers.set('Authorization', `Bearer ${newToken}`);
+      } else if (newInit.headers) {
+        (newInit.headers as any)['Authorization'] = `Bearer ${newToken}`;
+      } else {
+        newInit.headers = { 'Authorization': `Bearer ${newToken}` };
+      }
+      return originalFetch(input, newInit);
+    } else {
+      // Relogin failed, let's clear tokens so the app forces manual login next time
+      AsyncStorage.multiRemove(['portal_token', 'portal_email', 'portal_password']);
+    }
+  }
+  return response;
+};
+// -------------------------------------
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   usePushNotifications();
