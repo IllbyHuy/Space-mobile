@@ -7,10 +7,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PriorityLevel {
   id: number;
-  levelName: string;
-  pricePerDay: number;
-  description: string;
-  priorityScore: number;
+  price: number;
+  isActive: boolean;
+  name: string;
+  description?: string | null;
+  durationInDays?: number | null;
+  durationForBanner?: number | null;
+  type?: string | null;
 }
 
 export default function PricingScreen() {
@@ -27,21 +30,17 @@ export default function PricingScreen() {
       setIsLoading(true);
       try {
         const [listingRes, bannerRes] = await Promise.all([
-          fetch('https://flexi-space-capstone-project.onrender.com/api/PriorityLevel/GetAll', {
-            headers: { 'accept': '*/*' }
-          }),
-          fetch('https://flexi-space-capstone-project.onrender.com/api/PriorityLevel/Banner/GetAll', {
-            headers: { 'accept': '*/*' }
-          }),
-        ]);
+        const res = await fetch('https://flexi-space-capstone-project.onrender.com/api/PriorityLevel/GetAll', {
+          headers: { 'accept': '*/*' }
+        });
 
-        if (listingRes.ok) {
-          const lData = await listingRes.json();
-          setListingLevels(Array.isArray(lData) ? lData : lData.items || []);
-        }
-        if (bannerRes.ok) {
-          const bData = await bannerRes.json();
-          setBannerLevels(Array.isArray(bData) ? bData : bData.items || []);
+        if (res.ok) {
+          const data = await res.json();
+          const safeData: PriorityLevel[] = Array.isArray(data) ? data : (data?.data || data?.items || []);
+          const active = safeData.filter(p => p.isActive);
+          const normalize = (t?: string | null) => String(t || '').toLowerCase() === 'banner' ? 'Banner' : 'Listing';
+          setListingLevels(active.filter(p => normalize(p.type) === 'Listing').sort((a, b) => a.id - b.id));
+          setBannerLevels(active.filter(p => normalize(p.type) === 'Banner').sort((a, b) => a.id - b.id));
         }
       } catch (err) {
         console.error('Lỗi khi tải gói dịch vụ:', err);
@@ -70,17 +69,21 @@ export default function PricingScreen() {
         <View style={[styles.iconWrap, { backgroundColor: type === 'listing' ? '#DBEAFE' : '#FEF3C7' }]}>
           <Feather name={type === 'listing' ? 'zap' : 'megaphone'} size={24} color={type === 'listing' ? '#2563EB' : '#D97706'} />
         </View>
-        <Text style={styles.cardTitle}>{pkg.levelName}</Text>
+        <Text style={styles.cardTitle}>{pkg.name}</Text>
       </View>
       <View style={styles.priceContainer}>
-        <Text style={styles.priceValue}>{pkg.pricePerDay.toLocaleString('vi-VN')}</Text>
-        <Text style={styles.priceUnit}>VND / ngày</Text>
+        <Text style={styles.priceValue}>{(pkg.price ?? 0).toLocaleString('vi-VN')}</Text>
+        <Text style={styles.priceUnit}>VND / gói</Text>
       </View>
       <Text style={styles.description}>{pkg.description || 'Không có mô tả chi tiết'}</Text>
       <View style={styles.benefits}>
         <View style={styles.benefitRow}>
           <Feather name="check-circle" size={16} color="#10B981" />
-          <Text style={styles.benefitText}>Điểm ưu tiên: <Text style={{ fontWeight: 'bold' }}>{pkg.priorityScore}</Text></Text>
+          <Text style={styles.benefitText}>
+            Thời hạn: <Text style={{ fontWeight: 'bold' }}>
+              {type === 'listing' ? (pkg.durationInDays ?? 0) : (pkg.durationForBanner ?? 0)} ngày
+            </Text>
+          </Text>
         </View>
         <View style={styles.benefitRow}>
           <Feather name="check-circle" size={16} color="#10B981" />
