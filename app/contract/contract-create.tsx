@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, KeyboardAvoidingView } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -530,9 +530,16 @@ export default function ContractCreateScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-
-        <View style={styles.inputGroup}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.inputGroup}>
           <Text style={styles.label}>Yêu cầu đặt thuê (Bắt buộc) *</Text>
           <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowRequestPicker(true)}>
             <Text style={[styles.pickerText, { flex: 1 }]} numberOfLines={1}>
@@ -562,7 +569,17 @@ export default function ContractCreateScreen() {
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Mặt bằng</Text>
-          <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowSpacePicker(true)}>
+          <TouchableOpacity 
+            style={[styles.pickerBtn, contractData.primaryBookingRequestId ? { backgroundColor: '#F3F4F6' } : {}]} 
+            onPress={() => {
+              if (contractData.primaryBookingRequestId) {
+                Alert.alert('Thông tin', 'Mặt bằng đã được tự động chọn dựa theo yêu cầu đặt thuê.');
+              } else {
+                setShowSpacePicker(true);
+              }
+            }}
+            activeOpacity={contractData.primaryBookingRequestId ? 1 : 0.2}
+          >
             <Text style={styles.pickerText}>
               {(() => {
                 const s = mySpaces.find(sp => String(sp.id || sp.Id) === String(contractData.spaceId));
@@ -756,7 +773,8 @@ export default function ContractCreateScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {renderPickerModal(showSpacePicker, setShowSpacePicker, 'Chọn mặt bằng', mySpaces.map(s => {
         const parentName = s.parentSpaceName || s.ParentSpaceName;

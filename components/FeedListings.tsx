@@ -79,14 +79,14 @@ export const FeedListings = ({
   headerPadding = 0,
   searchQuery = "",
   showFavoritesOnly = false,
-  listingTypeFilter = 'all',
+  listingTypeFilters = [],
   priceSortFilter = 'none',
 }: {
   onScroll?: any;
   headerPadding?: number;
   searchQuery?: string;
   showFavoritesOnly?: boolean;
-  listingTypeFilter?: 'all' | 'shared' | 'longterm';
+  listingTypeFilters?: string[];
   priceSortFilter?: 'none' | 'asc' | 'desc';
 }) => {
   const [listings, setListings] = useState<any[]>([]);
@@ -103,133 +103,173 @@ export const FeedListings = ({
       const storedToken = await AsyncStorage.getItem("portal_token");
       setToken(storedToken);
 
-        const [spaceRes, listingRes, bannerRes] = await Promise.all([
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/Space/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-          fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/Banner/GetAll",
-            { headers: { accept: "*/*" } },
-          ),
-        ]);
+      const headers: any = { accept: "*/*" };
+      if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
 
-        let spaces: any[] = [];
-        if (spaceRes.ok) spaces = await spaceRes.json();
+      const [spaceRes, listingRes, bannerRes] = await Promise.all([
+        fetch(
+          "https://flexi-space-capstone-project.onrender.com/api/Space/GetAll",
+          { headers: { accept: "*/*" } },
+        ),
+        fetch(
+          "https://flexi-space-capstone-project.onrender.com/api/Listing/GetAll",
+          { headers },
+        ),
+        fetch(
+          "https://flexi-space-capstone-project.onrender.com/api/Banner/GetAll",
+          { headers: { accept: "*/*" } },
+        ),
+      ]);
 
-        let allSpacesAndParts: any[] = [...spaces];
-        await Promise.all(
-          spaces.map(async (s) => {
-            try {
-              const partRes = await fetch(
-                `https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetByParent/${s.id || s.Id}`,
-                { headers: { accept: "*/*" } },
-              );
-              if (partRes.ok) {
-                const partData = await partRes.json();
-                const parts = Array.isArray(partData)
-                  ? partData
-                  : partData?.items || [];
-                parts.forEach((p: any) => {
-                  allSpacesAndParts.push({ ...p, isSpacePart: true });
-                });
-              }
-            } catch (e) {}
-          }),
+      let spaces: any[] = [];
+      if (spaceRes.ok) {
+        const spaceData = await spaceRes.json();
+        spaces = Array.isArray(spaceData) ? spaceData : (spaceData?.data || spaceData?.items || []);
+      }
+
+      if (listingRes.ok) {
+        const listingData = await listingRes.json();
+        let safeData: any[] = Array.isArray(listingData)
+          ? listingData
+          : listingData?.data || listingData?.items || [];
+
+        // Filter occupied
+        safeData = safeData.filter(
+          (item: any) =>
+            item.status !== "Occupied" &&
+            String(item.status) !== "1" &&
+            item.Status !== "Occupied" &&
+            String(item.Status) !== "1",
         );
 
-        if (listingRes.ok) {
-          const listingData = await listingRes.json();
-          let safeData = Array.isArray(listingData)
-            ? listingData
-            : listingData?.data || listingData?.items || [];
+        // Identify which listings belong to a SpacePart (spaceId not found in spaces list)
+        const spacePartPromises: number[] = [];
+        const mapped = safeData.map((l: any) => {
+          const currentSpaceId = l.spaceId || l.SpaceId;
+          const parentSpace = spaces.find((s: any) => (s.id || s.Id) == currentSpaceId);
+          const isSpacePart = !parentSpace;
+          if (isSpacePart && currentSpaceId) spacePartPromises.push(currentSpaceId);
+          return { ...l, isSpacePart, _tempSpaceId: currentSpaceId, _parentSpace: parentSpace };
+        });
 
-          safeData = safeData.map((item: any) => {
-            const parentSpace = allSpacesAndParts.find(
-              (s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId),
-            );
-            return {
-              ...item,
-              area: item.area || parentSpace?.area || null,
-              address:
-                item.spaceAddress ||
-                item.location ||
-                item.address ||
-                parentSpace?.address ||
-                parentSpace?.location ||
-                "",
-              isSpacePart: parentSpace?.isSpacePart || false,
-            };
-          });
-
-          // Fetch banners before filtering safeData so we can check listing status
-          if (bannerRes.ok) {
-            const bannerData = await bannerRes.json();
-            let rawBanners = unwrapApiList(bannerData);
-            rawBanners.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-            
-            rawBanners = rawBanners.map((b: any) => {
-              const associatedListing = safeData.find((l: any) => l.id === b.listingId || l.Id === b.listingId);
-              if (associatedListing) {
-                b.listingStatus = associatedListing.status ?? associatedListing.Status;
-              }
-              return b;
-            });
-
-            setBanners(
-              rawBanners.filter(
-                (b: any) => (b.title || b.description || b.bannerPictures) && b.listingStatus !== 'Occupied' && String(b.listingStatus) !== '1'
-              )
-            );
-          } else {
-             setBanners([]);
-          }
-
-          // Filter out occupied listings
-          safeData = safeData.filter((item: any) => item.status !== 'Occupied' && String(item.status) !== '1' && item.Status !== 'Occupied' && String(item.Status) !== '1');
-
-          setListings(safeData.reverse());
-        }
-
-        if (storedToken) {
-          const favRes = await fetch(
-            "https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser",
-            {
-              headers: {
-                Authorization: `Bearer ${storedToken}`,
-                accept: "*/*",
-              },
-            },
+        // Fetch unique space parts by ID (same as Web)
+        const uniqueSpacePartIds = Array.from(new Set(spacePartPromises));
+        const fetchedSpaceParts: Record<number, any> = {};
+        if (uniqueSpacePartIds.length > 0) {
+          await Promise.all(
+            uniqueSpacePartIds.map(async (spId) => {
+              try {
+                const res = await fetch(
+                  `https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${spId}`,
+                  { headers },
+                );
+                if (res.ok) fetchedSpaceParts[spId] = await res.json();
+              } catch (e) {}
+            }),
           );
-          if (favRes.ok) {
-            const favData = await favRes.json();
-            const favArray = Array.isArray(favData)
-              ? favData
-              : favData?.data || favData?.items || favData?.listingIds || [];
-            const ids = favArray
-              .map((item: any) => {
-                if (typeof item === "number" || typeof item === "string")
-                  return item.toString();
-                return (
-                  item?.listingId ||
-                  item?.ListingId ||
-                  item?.listing?.id ||
-                  item?.id ||
-                  item?.Id
-                )?.toString();
-              })
-              .filter(Boolean);
-            setFavoriteIds(new Set(ids));
-          }
         }
+
+        // Merge area, address, spaceOwnerId (exactly like Web HomeListings)
+        safeData = mapped.map((l: any) => {
+          const spaceOrPart: any = l._parentSpace || fetchedSpaceParts[l._tempSpaceId];
+          let address = l.spaceAddress || l.location || l.address || "";
+          let city = l.city || l.spaceCity || "";
+          let computedArea = l.area || l.Area || spaceOrPart?.area || spaceOrPart?.Area || null;
+
+          if (l.isSpacePart && spaceOrPart?.parentSpaceId) {
+            const parent = spaces.find((s: any) => (s.id || s.Id) == spaceOrPart.parentSpaceId);
+            if (parent && !address) {
+              address = parent.address || parent.location || "";
+              city = parent.city || "";
+            }
+          } else if (spaceOrPart && !address) {
+            address = spaceOrPart.address || spaceOrPart.location || "";
+            city = spaceOrPart.city || "";
+          }
+
+          const parentForOwner = l.isSpacePart && spaceOrPart?.parentSpaceId
+            ? spaces.find((s: any) => (s.id || s.Id) == spaceOrPart.parentSpaceId)
+            : null;
+
+          const _spaceOwnerId =
+            spaceOrPart?.ownerId || spaceOrPart?.createdBy || spaceOrPart?.OwnerId || spaceOrPart?.CreatedBy ||
+            parentForOwner?.ownerId || parentForOwner?.createdBy || parentForOwner?.OwnerId || parentForOwner?.CreatedBy ||
+            null;
+
+          return {
+            ...l,
+            area: computedArea,
+            address,
+            city,
+            isSpacePart: l.isSpacePart,
+            _spaceOwnerId,
+          };
+        });
+
+        // Banners
+        if (bannerRes.ok) {
+          const bannerData = await bannerRes.json();
+          let rawBanners = unwrapApiList(bannerData);
+          rawBanners.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+          rawBanners = rawBanners.map((b: any) => {
+            const assoc = safeData.find((l: any) => l.id === b.listingId || l.Id === b.listingId);
+            if (assoc) b.listingStatus = assoc.status ?? assoc.Status;
+            return b;
+          });
+          setBanners(
+            rawBanners.filter(
+              (b: any) =>
+                (b.title || b.description || b.bannerPictures) &&
+                b.listingStatus !== "Occupied" &&
+                String(b.listingStatus) !== "1" &&
+                b.listingStatus !== "Pending",
+            ),
+          );
+        } else {
+          setBanners([]);
+        }
+
+        // Do not sort by createdAt locally to preserve API's push-to-top order
+
+        setListings(safeData);
+      }
+
+      if (storedToken) {
+        const favRes = await fetch(
+          "https://flexi-space-capstone-project.onrender.com/api/FavoriteList/FavoriteByUser",
+          {
+            headers: {
+              Authorization: `Bearer ${storedToken}`,
+              accept: "*/*",
+            },
+          },
+        );
+        if (favRes.ok) {
+          const favData = await favRes.json();
+          const favArray = Array.isArray(favData)
+            ? favData
+            : favData?.data || favData?.items || favData?.listingIds || [];
+          const ids = favArray
+            .map((item: any) => {
+              if (typeof item === "number" || typeof item === "string")
+                return item.toString();
+              return (
+                item?.listingId ||
+                item?.ListingId ||
+                item?.listing?.id ||
+                item?.id ||
+                item?.Id
+              )?.toString();
+            })
+            .filter(Boolean);
+          setFavoriteIds(new Set(ids));
+        }
+      }
     } catch (error) {
       console.error("Lỗi tải Feed:", error);
     }
   };
+
 
   useEffect(() => {
     fetchFeed().finally(() => setIsLoading(false));
@@ -336,7 +376,7 @@ export const FeedListings = ({
               </Text>
             </TouchableOpacity>
             <Text style={styles.timeAndLocation}>
-              2 giờ trước • 📍 {item.address?.substring(0, 20) || "TP.HCM"}
+              2 giờ trước • 📍 {item.address?.substring(0, 20) || "TP.HCM"}{item.city ? `, ${item.city}` : ""}
             </Text>
           </View>
           <View
@@ -351,25 +391,33 @@ export const FeedListings = ({
               },
             ]}
           >
-            {item.isSpacePart && (
-              <View
-                style={[styles.badgeWrapper, { backgroundColor: "#F3E8FF" }]}
-              >
-                <Text style={[styles.badgeText, { color: "#7E22CE" }]}>
-                  Từ MB gốc
-                </Text>
-              </View>
-            )}
-            <View style={styles.badgeWrapper}>
-              <Text
-                style={[
-                  styles.badgeText,
-                  { color: isHourly ? "#1d4ed8" : "#047857" },
-                ]}
-              >
-                {isHourly ? "Theo giờ" : "Dài hạn"}
-              </Text>
-            </View>
+            {(() => {
+              let typeBadge = { label: 'Dài hạn', bg: '#F0FDF4', color: '#166534' };
+              const cIdBadge = item.creatorId || item.CreatorId;
+              if (item.listingType === 'SharedSpace' && cIdBadge && item._spaceOwnerId && String(cIdBadge) !== String(item._spaceOwnerId)) {
+                typeBadge = { label: 'Cho thuê lại', bg: '#FCE7F3', color: '#9D174D' };
+              } else if (item.priceUnit === 'PerHour') {
+                typeBadge = { label: 'Theo ca', bg: '#EEF2FF', color: '#3730A3' };
+              } else if (item.listingType === 'SharedSpace') {
+                typeBadge = { label: 'Chia sẻ', bg: '#EEF2FF', color: '#3730A3' };
+              }
+
+              let scopeBadge = { label: 'Nguyên căn', bg: '#ECFDF5', color: '#047857' };
+              if (item.isSpacePart) {
+                scopeBadge = { label: 'Diện tích chia nhỏ', bg: '#FEF9C3', color: '#854D0E' };
+              }
+
+              return (
+                <>
+                  <View style={[styles.badgeWrapper, { backgroundColor: typeBadge.bg }]}>
+                    <Text style={[styles.badgeText, { color: typeBadge.color }]}>{typeBadge.label}</Text>
+                  </View>
+                  <View style={[styles.badgeWrapper, { backgroundColor: scopeBadge.bg }]}>
+                    <Text style={[styles.badgeText, { color: scopeBadge.color }]}>{scopeBadge.label}</Text>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
 
@@ -389,6 +437,31 @@ export const FeedListings = ({
               : "Thỏa thuận"}{" "}
             • {item.area ? `${item.area}m²` : "N/A"}
           </Text>
+          {isHourly && item.shareSpaceDetailAvailabilitiesTimes?.length > 0 && (() => {
+            const firstSlot = item.shareSpaceDetailAvailabilitiesTimes[0];
+            const formatToAmPm = (timeStr: string) => {
+              if (!timeStr) return '';
+              const [h, m] = timeStr.split(':');
+              const hh = parseInt(h, 10);
+              const ampm = hh >= 12 ? 'PM' : 'AM';
+              const hh12 = hh % 12 || 12;
+              return `${hh12.toString().padStart(2, '0')}:${m} ${ampm}`;
+            };
+            
+            const dayStr = firstSlot.daysOfWeek?.length > 0 ? firstSlot.daysOfWeek.join(', ') : 'Hôm nay';
+            let timeSlotStr = `⏱ ${dayStr}: ${formatToAmPm(firstSlot.startTime)} - ${formatToAmPm(firstSlot.endTime)}`;
+            if (item.shareSpaceDetailAvailabilitiesTimes.length > 1) {
+               timeSlotStr += ` (và ${item.shareSpaceDetailAvailabilitiesTimes.length - 1} ca khác)`;
+            }
+            
+            return (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 }}>
+                <Text style={{ fontSize: 13, color: "#64748B", fontWeight: '600' }}>
+                  {timeSlotStr}
+                </Text>
+              </View>
+            );
+          })()}
         </TouchableOpacity>
 
         {/* MEDIA */}
@@ -451,14 +524,30 @@ export const FeedListings = ({
     );
   }
 
-  if (listingTypeFilter === 'shared') {
-    filteredListings = filteredListings.filter(
-      (item) => item.listingType === 'SharedSpace' || item.isHourly === true
-    );
-  } else if (listingTypeFilter === 'longterm') {
-    filteredListings = filteredListings.filter(
-      (item) => item.listingType !== 'SharedSpace' && item.isHourly !== true
-    );
+  if (listingTypeFilters && listingTypeFilters.length > 0) {
+    filteredListings = filteredListings.filter((item) => {
+      let matches = false;
+      const cIdBadge = item.creatorId || item.CreatorId;
+      
+      if (listingTypeFilters.includes('timeslot')) {
+        // "Theo ca / Chia sẻ khung giờ"
+        if (item.priceUnit === 'PerHour' || item.listingType === 'SharedSpace') matches = true;
+      }
+      if (listingTypeFilters.includes('partial')) {
+        // "Một góc/Kiot"
+        if (item.isSpacePart === true) matches = true;
+      }
+      if (listingTypeFilters.includes('full')) {
+        // "Nguyên căn"
+        if (!item.isSpacePart) matches = true;
+      }
+      if (listingTypeFilters.includes('sublease')) {
+        // "Cho thuê lại"
+        if (item.listingType === 'SharedSpace' && cIdBadge && item._spaceOwnerId && String(cIdBadge) !== String(item._spaceOwnerId)) matches = true;
+      }
+      
+      return matches;
+    });
   }
 
   const normalizedQuery = searchQuery.trim().toLowerCase();

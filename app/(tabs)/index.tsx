@@ -10,7 +10,7 @@ import { useNotificationContext } from "@/hooks/NotificationContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 
-export type ListingTypeFilter = 'all' | 'shared' | 'longterm';
+export type ListingTypeFilter = 'all' | 'timeslot' | 'partial' | 'full';
 export type PriceSortFilter = 'none' | 'asc' | 'desc';
 
 export default function HomeScreen() {
@@ -18,7 +18,7 @@ export default function HomeScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [listingTypeFilter, setListingTypeFilter] = useState<ListingTypeFilter>('all');
+  const [listingTypeFilters, setListingTypeFilters] = useState<string[]>([]);
   const [priceSortFilter, setPriceSortFilter] = useState<PriceSortFilter>('none');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const { unreadCount, setUnreadCount } = useNotificationContext();
@@ -71,11 +71,11 @@ export default function HomeScreen() {
     { useNativeDriver: true },
   );
 
-  const isAnyFilterActive = showFavoritesOnly || listingTypeFilter !== 'all' || priceSortFilter !== 'none';
+  const isAnyFilterActive = showFavoritesOnly || listingTypeFilters.length > 0 || priceSortFilter !== 'none';
 
   const handleResetFilters = () => {
     setShowFavoritesOnly(false);
-    setListingTypeFilter('all');
+    setListingTypeFilters([]);
     setPriceSortFilter('none');
   };
 
@@ -87,7 +87,7 @@ export default function HomeScreen() {
         headerPadding={headerHeight + insets.top}
         searchQuery={searchQuery}
         showFavoritesOnly={showFavoritesOnly}
-        listingTypeFilter={listingTypeFilter}
+        listingTypeFilters={listingTypeFilters}
         priceSortFilter={priceSortFilter}
       />
 
@@ -141,21 +141,38 @@ export default function HomeScreen() {
               {/* Loại hình */}
               <Text style={styles.filterLabel}>Loại hình</Text>
               <View style={styles.filterRow}>
-                {([
+                {[
                   { val: 'all', label: 'Tất cả' },
-                  { val: 'shared', label: 'Chia sẻ chỗ' },
-                  { val: 'longterm', label: 'Thuê dài hạn' },
-                ] as { val: ListingTypeFilter; label: string }[]).map(opt => (
-                  <TouchableOpacity
-                    key={opt.val}
-                    style={[styles.filterChip, listingTypeFilter === opt.val && styles.filterChipActive]}
-                    onPress={() => setListingTypeFilter(opt.val)}
-                  >
-                    <Text style={[styles.filterChipText, listingTypeFilter === opt.val && styles.filterChipTextActive]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                  { val: 'timeslot', label: 'Chia sẻ khung giờ' },
+                  { val: 'partial', label: 'Một góc/Kiot' },
+                  { val: 'full', label: 'Thuê nguyên căn' },
+                  { val: 'sublease', label: 'Cho thuê lại' },
+                ].map(opt => {
+                  const isActive = opt.val === 'all' 
+                    ? listingTypeFilters.length === 0 
+                    : listingTypeFilters.includes(opt.val);
+                  return (
+                    <TouchableOpacity
+                      key={opt.val}
+                      style={[styles.filterChip, isActive && styles.filterChipActive]}
+                      onPress={() => {
+                        if (opt.val === 'all') {
+                          setListingTypeFilters([]);
+                        } else {
+                          if (listingTypeFilters.includes(opt.val)) {
+                            setListingTypeFilters(listingTypeFilters.filter(v => v !== opt.val));
+                          } else {
+                            setListingTypeFilters([...listingTypeFilters, opt.val]);
+                          }
+                        }
+                      }}
+                    >
+                      <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* Sắp xếp giá */}

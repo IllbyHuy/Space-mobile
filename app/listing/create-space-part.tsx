@@ -11,11 +11,15 @@ import {
   Switch,
   Modal,
   FlatList,
+  Platform,
+  Image,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 
 const API_BASE = "https://flexi-space-capstone-project.onrender.com";
 
@@ -42,12 +46,17 @@ const DAYS_OF_WEEK = [
 export default function CreateSpacePartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { parentSpaceId } = useLocalSearchParams();
+  const { parentSpaceId, id } = useLocalSearchParams();
+  const isEditing = !!id;
 
   const [token, setToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [parentSpace, setParentSpace] = useState<any>(null);
   const [existingPartsTotalArea, setExistingPartsTotalArea] = useState(0);
+
+  // Images
+  const [selectedImages, setSelectedImages] = useState<any[]>([]);
+  const [existingImages, setExistingImages] = useState<any[]>([]);
 
   // Basic info
   const [name, setName] = useState("");
@@ -55,6 +64,15 @@ export default function CreateSpacePartScreen() {
 
   // Amenities
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [customAmenity, setCustomAmenity] = useState("");
+
+  const addCustomAmenity = () => {
+    const val = customAmenity.trim();
+    if (val && !selectedAmenities.includes(val)) {
+      setSelectedAmenities([...selectedAmenities, val]);
+    }
+    setCustomAmenity("");
+  };
 
   // Business categories
   const [apiCategories, setApiCategories] = useState<any[]>([]);
@@ -107,7 +125,7 @@ export default function CreateSpacePartScreen() {
           const data = await res.json();
           const parts = Array.isArray(data) ? data : data?.items || [];
           const totalArea = parts.reduce(
-            (sum: number, p: any) => sum + (p.isActive ? p.area : 0),
+            (sum: number, p: any) => sum + (p.isActive && p.id !== Number(id) ? p.area : 0),
             0,
           );
           setExistingPartsTotalArea(totalArea);
@@ -117,7 +135,37 @@ export default function CreateSpacePartScreen() {
       }
     };
     fetchExistingParts();
-  }, [parentSpaceId, token]);
+  }, [parentSpaceId, token, id]);
+
+  // Fetch SpacePart if Editing
+  useEffect(() => {
+    if (!isEditing || !token || !id) return;
+    const fetchSpacePart = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/SpacePart/GetById/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setName(data.name || "");
+          setArea(data.area ? String(data.area) : "");
+          
+          if (data.amenities && Array.isArray(data.amenities)) {
+            setSelectedAmenities(data.amenities.map((a: any) => a.name));
+          }
+          if (data.spaceAllowedCategories && data.spaceAllowedCategories.length > 0) {
+            setSelectedCategoryId(data.spaceAllowedCategories[0].bussinessCategoryId);
+          }
+          if (data.pictureURLs && Array.isArray(data.pictureURLs)) {
+             setExistingImages(data.pictureURLs);
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi lấy thông tin không gian nhỏ:", err);
+      }
+    };
+    fetchSpacePart();
+  }, [id, token, isEditing]);
 
   // Fetch business categories
   useEffect(() => {
@@ -139,6 +187,52 @@ export default function CreateSpacePartScreen() {
     setSelectedAmenities((prev) =>
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
     );
+  };
+
+  const pickImage = async () => {
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets) {
+        setSelectedImages((prev) => [...prev, ...result.assets]);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = async (index: number) => {
+    const imgToRemove = existingImages[index];
+    const publicId = imgToRemove?.publicId || imgToRemove?.id || imgToRemove;
+
+    if (publicId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/Picture/${publicId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "*/*",
+          },
+        });
+
+        if (res.ok) {
+          setExistingImages((prev) => prev.filter((_, i) => i !== index));
+        } else {
+          Alert.alert("Lỗi", "Không thể xóa ảnh này trên hệ thống!");
+        }
+      } catch (err) {
+        Alert.alert("Lỗi", "Đã xảy ra lỗi khi xóa ảnh");
+      }
+    } else if (typeof imgToRemove === 'string') {
+      setExistingImages((prev) => prev.filter((_, i) => i !== index));
+    }
   };
 
   const handleSubmit = async () => {
@@ -163,7 +257,7 @@ export default function CreateSpacePartScreen() {
 
     setIsSubmitting(true);
 
-    const payload = {
+    const payload: any = {
       name: name.trim(),
       area: numArea,
       isActive: true,
@@ -181,34 +275,75 @@ export default function CreateSpacePartScreen() {
     };
 
     try {
-      const res = await fetch(
-        `${API_BASE}/api/SpacePart/Create/${parentSpaceId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            accept: "*/*",
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        let errorMessage =
-          errData.message ||
-          `Lỗi API: ${JSON.stringify(errData)}`;
-        if (errorMessage.includes("cannot exceed parent space area")) {
-          errorMessage =
-            "Tổng diện tích các không gian chia nhỏ vượt quá diện tích không gian gốc.";
-        }
-        throw new Error(errorMessage);
+      let endpoint = `${API_BASE}/api/SpacePart/Create/${parentSpaceId}`;
+      let method = "POST";
+      
+      if (isEditing) {
+        endpoint = `${API_BASE}/api/SpacePart/Update/${id}`;
+        method = "PUT";
+        payload.id = Number(id);
       }
 
-      Alert.alert("Thành công", "Đã tạo không gian nhỏ thành công!", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      const res = await fetch(endpoint, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          accept: "*/*",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        let errorMessage = errText;
+        try {
+          const errData = JSON.parse(errText);
+          errorMessage = errData.message || errData.title || errText;
+        } catch(e) {}
+        
+        const lowerErr = errorMessage.toLowerCase();
+        if (lowerErr.includes("cannot exceed parent space area") || lowerErr.includes("diện tích") || lowerErr.includes("exceed")) {
+          errorMessage = "Tổng diện tích các không gian chia nhỏ vượt quá diện tích không gian gốc.";
+        } else if (lowerErr.includes("already been signed") || lowerErr.includes("already has an active contract")) {
+          errorMessage = "Mặt bằng này đã được ký hợp đồng hoặc đang có người thuê nên không thể chia nhỏ.";
+        }
+        throw new Error(errorMessage || `Lỗi API: ${res.status}`);
+      }
+
+      const responseData = await res.json().catch(() => ({}));
+      const createdSpaceId = isEditing ? id : (responseData.id || responseData.data?.id || responseData);
+
+      // Upload new images
+      if (selectedImages.length > 0 && createdSpaceId) {
+        const formData = new FormData();
+        selectedImages.forEach((file) => {
+          formData.append("file", {
+            uri: Platform.OS === "android" ? file.uri : file.uri.replace("file://", ""),
+            type: file.mimeType || "image/jpeg",
+            name: file.fileName || `image-${Date.now()}.jpg`,
+          } as any);
+        });
+        formData.append("spaceId", createdSpaceId.toString());
+
+        const picRes = await fetch(`${API_BASE}/api/Picture`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
+          body: formData,
+        });
+
+        if (!picRes.ok) {
+          console.error("Lỗi up ảnh SpacePart:", await picRes.text().catch(() => ""));
+          Alert.alert("Cảnh báo", `Đã ${isEditing ? "cập nhật" : "tạo"} không gian thành công nhưng tải ảnh lên thất bại!`, [{ text: "OK", onPress: () => router.back() }]);
+          return;
+        }
+      }
+
+      Alert.alert(
+        "Thành công",
+        `Đã ${isEditing ? "cập nhật" : "tạo"} không gian nhỏ thành công!`,
+        [{ text: "OK", onPress: () => router.back() }],
+      );
     } catch (err: any) {
       Alert.alert("Lỗi", err.message);
     } finally {
@@ -224,15 +359,20 @@ export default function CreateSpacePartScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo không gian chia nhỏ</Text>
+        <Text style={styles.headerTitle}>{isEditing ? "Sửa không gian chia nhỏ" : "Tạo không gian chia nhỏ"}</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
 
         <View style={styles.inputGroup}>
@@ -285,6 +425,34 @@ export default function CreateSpacePartScreen() {
               </TouchableOpacity>
             );
           })}
+          {selectedAmenities.filter(a => !AMENITIES_IDS.includes(a)).map((custom) => (
+            <TouchableOpacity
+              key={custom}
+              style={[styles.amenityChip, styles.amenityChipActive]}
+              onPress={() => toggleAmenity(custom)}
+            >
+              <Feather name="check-square" size={16} color="#00A67E" />
+              <Text style={[styles.amenityText, styles.amenityTextActive]}>
+                {custom}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', marginTop: 12 }]}>
+          <TextInput
+            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            placeholder="Nhập tiện ích khác..."
+            value={customAmenity}
+            onChangeText={setCustomAmenity}
+            onSubmitEditing={addCustomAmenity}
+          />
+          <TouchableOpacity 
+            style={{ marginLeft: 8, backgroundColor: '#00A67E', padding: 12, borderRadius: 8 }}
+            onPress={addCustomAmenity}
+          >
+            <Feather name="plus" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>Ngành nghề cho phép (Tuỳ chọn)</Text>
@@ -310,6 +478,37 @@ export default function CreateSpacePartScreen() {
         </View>
 
 
+        {/* Hình ảnh mặt bằng */}
+        <Text style={styles.sectionTitle}>Hình ảnh mặt bằng (Tùy chọn)</Text>
+        <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
+          <Feather name="image" size={20} color="#00A67E" />
+          <Text style={styles.pickImageText}>Chọn ảnh từ thư viện</Text>
+        </TouchableOpacity>
+
+        {(existingImages.length > 0 || selectedImages.length > 0) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewContainer}>
+            {existingImages.map((img, idx) => {
+              const url = typeof img === 'string' ? img : (img.imageUrl || img.url || img.pictureUrl);
+              return (
+                <View key={`existing-${idx}`} style={styles.imagePreviewWrapper}>
+                  <Image source={{ uri: url }} style={styles.imagePreview} />
+                  <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeExistingImage(idx)}>
+                    <Feather name="x" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+            {selectedImages.map((img, idx) => (
+              <View key={`new-${idx}`} style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(idx)}>
+                  <Feather name="x" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
         <TouchableOpacity
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
           onPress={handleSubmit}
@@ -318,10 +517,11 @@ export default function CreateSpacePartScreen() {
           {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitBtnText}>Lưu không gian con</Text>
+            <Text style={styles.submitBtnText}>{isEditing ? "Lưu thay đổi" : "Lưu không gian nhỏ"}</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Category Picker Modal */}
       <Modal visible={showCategoryPicker} transparent animationType="slide">
@@ -407,6 +607,52 @@ const styles = StyleSheet.create({
   },
   pickerText: { fontSize: 15, color: "#111827" },
   pickerPlaceholder: { fontSize: 15, color: "#9CA3AF" },
+
+  pickImageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    borderStyle: "dashed",
+    borderRadius: 8,
+    paddingVertical: 14,
+    gap: 8,
+    marginBottom: 16,
+  },
+  pickImageText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#00A67E",
+  },
+  imagePreviewContainer: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  imagePreviewWrapper: {
+    marginRight: 12,
+    position: "relative",
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+  },
+  removeImageBtn: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#EF4444",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
 
   amenitiesGrid: {
     flexDirection: "row",

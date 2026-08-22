@@ -158,6 +158,7 @@ export default function AuthScreen() {
         if (data.accessToken) {
           await AsyncStorage.setItem('portal_token', data.accessToken);
           await AsyncStorage.setItem('portal_email', email);
+          await AsyncStorage.setItem('portal_password', password); // TRICK LỎ: lưu password để auto relogin
         }
         
         const messageStr = data.message || '';

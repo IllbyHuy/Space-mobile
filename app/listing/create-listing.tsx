@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, ActivityIndicator, Modal, FlatList, Image, Platform
+  Alert, ActivityIndicator, Modal, FlatList, Image, Platform, KeyboardAvoidingView
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -324,31 +324,27 @@ export default function CreateListingScreen() {
   useEffect(() => {
     if (!token || !currentUserId) return;
     const fetchSpaces = async () => {
+      fetch(`${API_BASE}/api/PriorityLevel/GetAll`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } })
+        .then(res => res.ok ? res.text() : Promise.reject())
+        .then(text => {
+          const prioData = text ? JSON.parse(text) : [];
+          const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
+          const activePrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() !== 'banner');
+          const activeBannerPrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() === 'banner');
+          setPriorityLevels(activePrio);
+          if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
+          setBannerPriorityLevels(activeBannerPrio);
+          if (activeBannerPrio.length > 0) setBannerPriorityLevelId(activeBannerPrio[0].id);
+        }).catch(() => {});
+
+      fetch(`${API_BASE}/api/Wallet/own`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } })
+        .then(res => res.ok ? res.text() : Promise.reject())
+        .then(text => {
+          const wData = text ? JSON.parse(text) : {};
+          setWalletBalance(wData.balance || 0);
+        }).catch(() => {});
+
       try {
-        const prioRes = await fetch(`${API_BASE}/api/PriorityLevel/GetAll`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
-        if (prioRes.ok) {
-          try {
-            const text = await prioRes.text();
-            const prioData = text ? JSON.parse(text) : [];
-            const pList = Array.isArray(prioData) ? prioData : (prioData.data || []);
-            const activePrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() !== 'banner');
-            const activeBannerPrio = pList.filter((p: any) => p.isActive && String(p.type || '').toLowerCase() === 'banner');
-            setPriorityLevels(activePrio);
-            if (activePrio.length > 0) setPriorityLevelId(activePrio[0].id);
-            setBannerPriorityLevels(activeBannerPrio);
-            if (activeBannerPrio.length > 0) setBannerPriorityLevelId(activeBannerPrio[0].id);
-          } catch (e) { }
-        }
-
-        const walletRes = await fetch(`${API_BASE}/api/WalletAccount/GetByUserId?userId=${currentUserId}`, { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } });
-        if (walletRes.ok) {
-          try {
-            const text = await walletRes.text();
-            const wData = text ? JSON.parse(text) : {};
-            setWalletBalance(wData.balance || 0);
-          } catch (e) { }
-        }
-
         const res = await fetch(
           `${API_BASE}/api/Space/GetAll?OwnerId=${encodeURIComponent(currentUserId)}`,
           { headers: { Authorization: `Bearer ${token}`, accept: '*/*' } }
@@ -924,11 +920,16 @@ export default function CreateListingScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <ScrollView
+          style={styles.scrollContent}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Chọn mặt bằng */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Mặt bằng *</Text>
@@ -1341,6 +1342,7 @@ export default function CreateListingScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Priority Picker Modal */}
       <Modal visible={showPriorityPicker} transparent animationType="slide">
