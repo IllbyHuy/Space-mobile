@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -96,10 +96,39 @@ export const FeedListings = ({
   const [token, setToken] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [isBannerDragging, setIsBannerDragging] = useState(false);
   const bannerScrollRef = useRef<ScrollView>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
   const screenWidth = Dimensions.get("window").width;
+
+  const PROMO_BANNERS = useMemo(() => [
+    {
+      id: 'promo-pricing',
+      _type: 'promo',
+      title: 'Nâng cấp gói hiển thị',
+      description: 'Tăng khả năng tiếp cận với gói bài đăng ưu tiên & banner quảng cáo.',
+      bgColor: '#1E3A5F',
+      icon: 'zap',
+      onPress: () => router.push('/pricing' as any),
+      imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800',
+    },
+    {
+      id: 'promo-ai',
+      _type: 'promo',
+      title: 'AI Chỉnh Sửa Ảnh',
+      description: 'Biến đổi không gian của bạn bằng AI: tô vùng & thêm vật thể.',
+      bgColor: '#064E3B',
+      icon: 'aperture',
+      onPress: () => router.push('/ai-explanation' as any),
+      imageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?auto=format&fit=crop&q=80&w=800',
+    },
+  ], []);
+
+  const allBannerItems = useMemo(() => [
+    ...banners.map(b => ({ ...b, _type: 'api' })),
+    ...PROMO_BANNERS,
+  ], [banners, PROMO_BANNERS]);
 
   const fetchFeed = async () => {
     try {
@@ -277,6 +306,24 @@ export const FeedListings = ({
   useEffect(() => {
     fetchFeed().finally(() => setIsLoading(false));
   }, []);
+
+  // Auto-rotate banner - runs at component level, NOT inside renderHeader
+  useEffect(() => {
+    if (allBannerItems.length <= 1) return;
+    if (isBannerDragging) return;
+
+    bannerTimerRef.current = setInterval(() => {
+      setCurrentBannerIndex(prev => {
+        const next = (prev + 1) % allBannerItems.length;
+        bannerScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        return next;
+      });
+    }, 3500);
+
+    return () => {
+      if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
+    };
+  }, [allBannerItems.length, screenWidth, isBannerDragging]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -568,47 +615,8 @@ export const FeedListings = ({
     filteredListings = [...filteredListings].sort((a, b) => (b.price || 0) - (a.price || 0));
   }
 
-  // Promotional banners always appended after API banners
-  const PROMO_BANNERS = [
-    {
-      id: 'promo-pricing',
-      title: 'Nâng cấp gói hiển thị',
-      description: 'Tăng khả năng tiếp cận với gói bài đăng ưu tiên & banner quảng cáo.',
-      bgColor: '#1E3A5F',
-      icon: 'zap',
-      onPress: () => router.push('/pricing' as any),
-      imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800',
-    },
-    {
-      id: 'promo-ai',
-      title: 'AI Chỉnh Sửa Ảnh',
-      description: 'Biến đổi không gian của bạn bằng AI: tô vùng & thêm vật thể.',
-      bgColor: '#064E3B',
-      icon: 'aperture',
-      onPress: () => router.push('/ai-explanation' as any),
-      imageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?auto=format&fit=crop&q=80&w=800',
-    },
-  ];
-
-  const allBannerItems: any[] = [
-    ...banners.map(b => ({ ...b, _type: 'api' })),
-    ...PROMO_BANNERS.map(p => ({ ...p, _type: 'promo' })),
-  ];
-
   const renderHeader = () => {
     if (allBannerItems.length === 0) return null;
-
-    const startAutoplay = () => {
-      if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
-      bannerTimerRef.current = setInterval(() => {
-        setCurrentBannerIndex(prev => {
-          const next = (prev + 1) % allBannerItems.length;
-          bannerScrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
-          return next;
-        });
-      }, 3500);
-    };
-
     return (
       <View style={styles.bannerContainer}>
         <ScrollView
@@ -616,11 +624,9 @@ export const FeedListings = ({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          onLayout={() => startAutoplay()}
-          onScrollBeginDrag={() => {
-            if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
-          }}
-          onScrollEndDrag={() => startAutoplay()}
+          scrollEventThrottle={16}
+          onScrollBeginDrag={() => setIsBannerDragging(true)}
+          onScrollEndDrag={() => setIsBannerDragging(false)}
           onMomentumScrollEnd={e => {
             const idx = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
             setCurrentBannerIndex(idx);
