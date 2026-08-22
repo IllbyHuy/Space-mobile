@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -73,7 +73,166 @@ const getPicUrl = (pic: any) => {
   return pic.imageUrl || pic.url || FALLBACK_IMAGE;
 };
 
-// Nhận thêm headerPadding để căn lề trên
+// ─────────────────────────────────────────────
+// Banner Carousel - tách riêng React.memo để
+// FlatList re-render KHÔNG làm reset ScrollView
+// ─────────────────────────────────────────────
+const PROMO_BANNERS_DEF = [
+  {
+    id: 'promo-pricing',
+    _type: 'promo' as const,
+    title: 'Nâng cấp gói hiển thị',
+    description: 'Tăng khả năng tiếp cận với gói bài đăng ưu tiên & banner quảng cáo.',
+    bgColor: '#1E3A5F',
+    icon: 'zap' as const,
+    route: '/pricing',
+    imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800',
+  },
+  {
+    id: 'promo-ai',
+    _type: 'promo' as const,
+    title: 'AI Chỉnh Sửa Ảnh',
+    description: 'Biến đổi không gian của bạn bằng AI: tô vùng & thêm vật thể.',
+    bgColor: '#064E3B',
+    icon: 'aperture' as const,
+    route: '/ai-explanation',
+    imageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?auto=format&fit=crop&q=80&w=800',
+  },
+];
+
+const BannerCarousel = React.memo(({ apiBanners }: { apiBanners: any[] }) => {
+  const router = useRouter();
+  const screenWidth = Dimensions.get('window').width;
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const allItems = useMemo(() => [
+    ...apiBanners.map(b => ({ ...b, _type: 'api' as const })),
+    ...PROMO_BANNERS_DEF,
+  ], [apiBanners]);
+
+  const startTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      if (isDraggingRef.current) return;
+      setCurrentIndex(prev => {
+        const next = (prev + 1) % allItems.length;
+        scrollRef.current?.scrollTo({ x: next * screenWidth, animated: true });
+        return next;
+      });
+    }, 3500);
+  }, [allItems.length, screenWidth]);
+
+  useEffect(() => {
+    if (allItems.length <= 1) return;
+    startTimer();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [startTimer]);
+
+  if (allItems.length === 0) return null;
+
+  return (
+    <View style={carouselStyles.container}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={() => { isDraggingRef.current = true; }}
+        onScrollEndDrag={() => {
+          isDraggingRef.current = false;
+          startTimer();
+        }}
+        onMomentumScrollEnd={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
+          setCurrentIndex(idx);
+        }}
+      >
+        {allItems.map((b, idx) => {
+          if (b._type === 'promo') {
+            return (
+              <TouchableOpacity
+                key={b.id}
+                activeOpacity={0.9}
+                onPress={() => router.push(b.route as any)}
+                style={{ width: screenWidth }}
+              >
+                <Image source={{ uri: b.imageUrl }} style={[carouselStyles.image, { opacity: 0.55 }]} />
+                <View style={[carouselStyles.content, { backgroundColor: b.bgColor + 'DD' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Feather name={b.icon} size={18} color="#00d4a0" />
+                    <Text style={carouselStyles.title}>{b.title}</Text>
+                  </View>
+                  <Text style={carouselStyles.desc} numberOfLines={2}>{b.description}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 }}>
+                    <Text style={{ color: '#00d4a0', fontSize: 13, fontWeight: '700' }}>Khám phá ngay</Text>
+                    <Feather name="arrow-right" size={13} color="#00d4a0" />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          }
+          const imgUrl = getBannerImageUrl(b);
+          return (
+            <TouchableOpacity
+              key={idx}
+              activeOpacity={0.9}
+              onPress={() => {
+                if (b.listingId) router.push(`/listing/${b.listingId}`);
+                else if (b.link) {
+                  if (b.link.toLowerCase().includes('ai')) router.push('/ai-editor');
+                  else Linking.openURL(b.link);
+                }
+              }}
+              style={{ width: screenWidth }}
+            >
+              <Image source={{ uri: imgUrl }} style={carouselStyles.image} />
+              <View style={carouselStyles.content}>
+                <Text style={carouselStyles.title}>{b.title || 'Ưu đãi mặt bằng'}</Text>
+                <Text style={carouselStyles.desc} numberOfLines={2}>
+                  {b.description || 'Khám phá không gian kinh doanh tuyệt vời'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      {/* Dot indicators */}
+      <View style={carouselStyles.dots}>
+        {allItems.map((_, idx) => (
+          <TouchableOpacity key={idx} onPress={() => {
+            scrollRef.current?.scrollTo({ x: idx * screenWidth, animated: true });
+            setCurrentIndex(idx);
+          }}>
+            <View style={[carouselStyles.dot, currentIndex === idx && carouselStyles.dotActive]} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+});
+
+const carouselStyles = StyleSheet.create({
+  container: { width: '100%', height: 220, backgroundColor: '#000', marginBottom: 8 },
+  image: { width: '100%', height: '100%', resizeMode: 'cover' },
+  content: {
+    position: 'absolute', bottom: 30, left: 16, right: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)', padding: 12, borderRadius: 10,
+  },
+  title: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  desc: { color: '#ddd', fontSize: 13 },
+  dots: {
+    position: 'absolute', bottom: 8, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
+  },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
+  dotActive: { width: 18, height: 6, borderRadius: 3, backgroundColor: '#00d4a0' },
+});
+
+// ─────────────────────────────────────────────
 export const FeedListings = ({
   onScroll,
   headerPadding = 0,
@@ -97,6 +256,9 @@ export const FeedListings = ({
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const screenWidth = Dimensions.get("window").width;
+
+  // Stable reference for ListHeaderComponent so FlatList doesn't remount it
+  const BannerHeader = useCallback(() => <BannerCarousel apiBanners={banners} />, [banners]);
 
   const fetchFeed = async () => {
     try {
@@ -565,71 +727,24 @@ export const FeedListings = ({
     filteredListings = [...filteredListings].sort((a, b) => (b.price || 0) - (a.price || 0));
   }
 
-  const renderHeader = () => {
-    if (banners.length === 0) return null;
-    return (
-      <View style={styles.bannerContainer}>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-        >
-          {banners.map((b: any, idx: number) => {
-            const imgUrl = getBannerImageUrl(b);
-            return (
-              <TouchableOpacity
-                key={idx}
-                activeOpacity={0.9}
-                onPress={() => {
-                  if (b.listingId) {
-                    router.push(`/listing/${b.listingId}`);
-                  } else if (b.link) {
-                    if (b.link.includes("ai-recommendation") || b.link.toLowerCase().includes("ai")) {
-                      router.push("/ai-editor");
-                    } else {
-                      Linking.openURL(b.link);
-                    }
-                  }
-                }}
-                style={{ width: screenWidth }}
-              >
-                <Image source={{ uri: imgUrl }} style={styles.bannerImage} />
-                <View style={styles.bannerContent}>
-                  <Text style={styles.bannerTitle}>
-                    {b.title || "Ưu đãi mặt bằng"}
-                  </Text>
-                  <Text style={styles.bannerDesc} numberOfLines={2}>
-                    {b.description ||
-                      "Khám phá không gian kinh doanh tuyệt vời"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
-
   return (
     <Animated.FlatList
       data={filteredListings}
       keyExtractor={(item, index) => (item.id || item.Id || index).toString()}
-      ListHeaderComponent={renderHeader}
+      ListHeaderComponent={BannerHeader}
       renderItem={renderFacebookStylePost}
       showsVerticalScrollIndicator={false}
       onScroll={onScroll}
-      // Quyết định độ mượt: 1 = bắt sự kiện mọi khung hình (60 FPS)
       scrollEventThrottle={1}
       contentContainerStyle={{
-        paddingTop: headerPadding, // Khoảng trống cho Header đè lên
-        paddingBottom: 100, // Khoảng trống cho Bottom Bar đè lên
+        paddingTop: headerPadding,
+        paddingBottom: 100,
         backgroundColor: "#CED0D4",
       }}
       refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
-          onRefresh={onRefresh} 
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           tintColor="#00A67E"
           colors={["#00A67E"]}
         />
@@ -704,7 +819,7 @@ const styles = StyleSheet.create({
   bannerImage: { width: "100%", height: "100%", resizeMode: "cover" },
   bannerContent: {
     position: "absolute",
-    bottom: 20,
+    bottom: 32,
     left: 20,
     right: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -718,4 +833,26 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bannerDesc: { color: "#eee", fontSize: 13 },
+  dotsContainer: {
+    position: "absolute",
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  dotActive: {
+    width: 18,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#00d4a0",
+  },
 });
