@@ -178,7 +178,7 @@ export default function BookingRequestsScreen() {
       return;
     }
 
-    const actionLabel = "DUYỆT";
+    const actionLabel = "CHẤP NHẬN THƯƠNG THẢO";
 
     if (Platform.OS === "web") {
       if (window.confirm(`Bạn có chắc muốn ${actionLabel} yêu cầu này?`)) {
@@ -235,14 +235,14 @@ export default function BookingRequestsScreen() {
             `${API_BASE}/api/Conversation/Create?lessorId=${currentUserId}&lesseeId=${lesseeId}`,
             { method: "POST", headers: { Authorization: `Bearer ${token}`, accept: "*/*" } },
           );
-          Alert.alert("Thành công", "Đã duyệt đơn và tạo phòng chat thành công!");
+          Alert.alert("Thành công", "Đã chấp nhận thương thảo và tạo phòng chat thành công!");
         } catch {
           Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
         }
       } else {
         Alert.alert(
           "Thành công",
-          newStatus === "Approved" ? "Đã duyệt thành công!" : "Đã từ chối yêu cầu thuê!",
+          newStatus === "Approved" ? "Đã chấp nhận thương thảo thành công!" : "Đã từ chối yêu cầu thuê!",
         );
       }
       fetchRequests();
@@ -381,7 +381,7 @@ export default function BookingRequestsScreen() {
               }
             >
               <Feather name="check-circle" size={16} color="#fff" />
-              <Text style={styles.approveBtnText}>Chấp nhận</Text>
+              <Text style={styles.approveBtnText}>Chấp nhận thương thảo</Text>
             </TouchableOpacity>
           </View>
         )}

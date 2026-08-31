@@ -29,7 +29,6 @@ export default function PricingScreen() {
     const loadLevels = async () => {
       setIsLoading(true);
       try {
-        const [listingRes, bannerRes] = await Promise.all([
         const res = await fetch('https://flexi-space-capstone-project.onrender.com/api/PriorityLevel/GetAll', {
           headers: { 'accept': '*/*' }
         });
