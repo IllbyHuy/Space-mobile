@@ -849,53 +849,62 @@ export default function ListingDetailScreen() {
           </View>
 
           {/* 9. BẢN ĐỒ (HỖ TRỢ CẢ WEB VÀ MOBILE) */}
-          <View style={styles.descSection}>
-            <Text style={styles.sectionTitle}>Vị trí</Text>
-            <View
-              style={{
-                height: 250,
-                borderRadius: 12,
-                overflow: "hidden",
-                borderWidth: 1,
-                borderColor: "#E5E7EB",
-                backgroundColor: "#F3F4F6",
-              }}
-            >
-              {Platform.OS === "web" ? (
-                <iframe
-                  width="100%"
-                  height="100%"
-                  frameBorder="0"
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(listing.address || "Hồ Chí Minh")}&output=embed`}
-                  style={{ border: 0 }}
-                />
-              ) : (
-                <WebView
-                  source={{
-                    html: `
-                      <!DOCTYPE html>
-                      <html>
-                        <head>
-                          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-                          <style>
-                            body { margin: 0; padding: 0; }
-                            iframe { width: 100vw; height: 100vh; border: none; }
-                          </style>
-                        </head>
-                        <body>
-                          <iframe src="https://maps.google.com/maps?q=${encodeURIComponent(listing.address || "Hồ Chí Minh")}&output=embed"></iframe>
-                        </body>
-                      </html>
-                    `
+          {(() => {
+            const fullAddress = [listing.address, listing.city].filter(Boolean).join(", ") || "Hồ Chí Minh";
+            const mapQuery = encodeURIComponent(fullAddress);
+            return (
+              <View style={styles.descSection}>
+                <Text style={styles.sectionTitle}>Vị trí</Text>
+                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>
+                  📍 {fullAddress}
+                </Text>
+                <View
+                  style={{
+                    height: 250,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    backgroundColor: "#F3F4F6",
                   }}
-                  style={{ flex: 1 }}
-                  showsVerticalScrollIndicator={false}
-                  showsHorizontalScrollIndicator={false}
-                  scrollEnabled={false}
-                />
-              )}
-            </View>
-          </View>
+                >
+                  {Platform.OS === "web" ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      src={`https://maps.google.com/maps?q=${mapQuery}&output=embed`}
+                      style={{ border: 0 }}
+                    />
+                  ) : (
+                    <WebView
+                      source={{
+                        html: `
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                              <style>
+                                body { margin: 0; padding: 0; }
+                                iframe { width: 100vw; height: 100vh; border: none; }
+                              </style>
+                            </head>
+                            <body>
+                              <iframe src="https://maps.google.com/maps?q=${mapQuery}&output=embed"></iframe>
+                            </body>
+                          </html>
+                        `
+                      }}
+                      style={{ flex: 1 }}
+                      showsVerticalScrollIndicator={false}
+                      showsHorizontalScrollIndicator={false}
+                      scrollEnabled={false}
+                    />
+                  )}
+                </View>
+              </View>
+            );
+          })()}
           {/* 10. NÚT BÁO CÁO */}
           {!isOwner && (
             <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>

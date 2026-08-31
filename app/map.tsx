@@ -24,38 +24,11 @@ export default function MapScreen() {
           const data = await response.json();
           const safeData = Array.isArray(data) ? data : data?.data || data?.items || [];
 
-          const processedListings = [];
-
-          for (const item of safeData) {
-            let currentLat = item.spaceLatitude;
-            let currentLng = item.spaceLongitude;
-
-            if ((!currentLat || currentLat === 0) && item.spaceAddress) {
-              try {
-                const geoRes = await fetch(
-                  `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(item.spaceAddress)}&format=json&limit=1`,
-                  { headers: { 'User-Agent': 'FlexiSpaceApp/1.0' } }
-                );
-
-                const geoData = await geoRes.json();
-
-                if (geoData && geoData.length > 0) {
-                  currentLat = parseFloat(geoData[0].lat);
-                  currentLng = parseFloat(geoData[0].lon);
-                }
-
-                await new Promise((resolve) => setTimeout(resolve, 500));
-              } catch (err) {
-                console.error('Lỗi Geocoding:', err);
-              }
-            }
-
-            processedListings.push({
-              ...item,
-              lat: currentLat || 10.7769,
-              lng: currentLng || 106.7,
-            });
-          }
+          const processedListings = safeData.map((item: any) => ({
+            ...item,
+            lat: (item.spaceLatitude && item.spaceLatitude !== 0) ? item.spaceLatitude : 10.7769,
+            lng: (item.spaceLongitude && item.spaceLongitude !== 0) ? item.spaceLongitude : 106.7,
+          }));
 
           setListings(processedListings);
         }
