@@ -105,7 +105,6 @@ export default function HomeScreen() {
         <HomeSearchBar
           value={searchQuery}
           onChangeValue={setSearchQuery}
-          onPressMap={() => router.push("/map")}
           onPressFilter={() => setShowFilterModal(true)}
           isFilterActive={isAnyFilterActive}
           notificationCount={unreadCount} 
@@ -145,6 +144,7 @@ export default function HomeScreen() {
                   { val: 'all', label: 'Tất cả' },
                   { val: 'timeslot', label: 'Chia sẻ khung giờ' },
                   { val: 'partial', label: 'Một góc/Kiot' },
+                  { val: 'spacePart', label: 'Chia nhỏ mặt bằng' },
                   { val: 'full', label: 'Thuê nguyên căn' },
                   { val: 'sublease', label: 'Cho thuê lại' },
                 ].map(opt => {

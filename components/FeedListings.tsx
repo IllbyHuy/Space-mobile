@@ -365,6 +365,8 @@ export const FeedListings = ({
             city,
             isSpacePart: l.isSpacePart,
             _spaceOwnerId,
+            _parentSpaceInfo: parentForOwner,
+            _spacePartInfo: l.isSpacePart ? spaceOrPart : null,
           };
         });
 
@@ -624,6 +626,24 @@ export const FeedListings = ({
               </View>
             );
           })()}
+
+          {item.isSpacePart && item._parentSpaceInfo && (
+            <View style={{ marginTop: 12, padding: 8, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Image 
+                source={{ uri: (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0]?.url || (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0]?.imageUrl || (typeof (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0] === 'string' ? (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)[0] : FALLBACK_IMAGE) }}
+                style={{ width: 48, height: 48, borderRadius: 4, backgroundColor: '#e2e8f0' }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>Thuộc mặt bằng gốc</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#0F172A' }} numberOfLines={1}>
+                  {item._parentSpaceInfo.name || 'Không gian gốc'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#475569' }} numberOfLines={1}>
+                  Mặt bằng: {item._spacePartInfo?.name || 'Mặt bằng này'}
+                </Text>
+              </View>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* MEDIA */}
@@ -706,6 +726,10 @@ export const FeedListings = ({
       if (listingTypeFilters.includes('sublease')) {
         // "Cho thuê lại"
         if (item.listingType === 'SharedSpace' && cIdBadge && item._spaceOwnerId && String(cIdBadge) !== String(item._spaceOwnerId)) matches = true;
+      }
+      if (listingTypeFilters.includes('spacePart')) {
+        // "Chia nhỏ mặt bằng" - có parentSpaceInfo (mặt bằng gốc)
+        if (item.isSpacePart === true) matches = true;
       }
       
       return matches;

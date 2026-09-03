@@ -39,7 +39,47 @@ export default function UserProfileScreen() {
           const listingData = await listingRes.json();
           const allListings = Array.isArray(listingData) ? listingData : listingData?.data || [];
           const userListings = allListings.filter((l: any) => l.creatorId === id && !l.isDeleted);
-          setListings(userListings);
+
+          const spaceRes = await fetch('https://flexi-space-capstone-project.onrender.com/api/Space/GetAll');
+          let spaces: any[] = [];
+          if (spaceRes.ok) {
+            const spaceData = await spaceRes.json();
+            spaces = Array.isArray(spaceData) ? spaceData : spaceData?.data || spaceData?.items || [];
+          }
+
+          const spacePartPromises: number[] = [];
+          const mappedUserListings = userListings.map((l: any) => {
+            const currentSpaceId = l.spaceId || l.SpaceId;
+            const parentSpace = spaces.find((s: any) => (s.id || s.Id) == currentSpaceId);
+            const isSpacePart = !parentSpace;
+            if (isSpacePart && currentSpaceId) spacePartPromises.push(currentSpaceId);
+            return { ...l, isSpacePart, _tempSpaceId: currentSpaceId, _parentSpace: parentSpace };
+          });
+
+          const uniqueSpacePartIds = Array.from(new Set(spacePartPromises));
+          const fetchedSpaceParts: Record<number, any> = {};
+          if (uniqueSpacePartIds.length > 0) {
+            await Promise.all(uniqueSpacePartIds.map(async (spId) => {
+              try {
+                const res = await fetch(`https://flexi-space-capstone-project.onrender.com/api/SpacePart/GetById/${spId}`);
+                if (res.ok) fetchedSpaceParts[spId] = await res.json();
+              } catch (e) {}
+            }));
+          }
+
+          const finalUserListings = mappedUserListings.map((l: any) => {
+            const spaceOrPart: any = l._parentSpace || fetchedSpaceParts[l._tempSpaceId];
+            const parentForOwner = l.isSpacePart && spaceOrPart?.parentSpaceId
+              ? spaces.find((s: any) => (s.id || s.Id) == spaceOrPart.parentSpaceId)
+              : null;
+            return {
+              ...l,
+              _parentSpaceInfo: parentForOwner,
+              _spacePartInfo: l.isSpacePart ? spaceOrPart : null,
+            };
+          });
+
+          setListings(finalUserListings);
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -136,6 +176,23 @@ export default function UserProfileScreen() {
               <View style={styles.listingContent}>
                 <Text style={styles.listingTitle} numberOfLines={2}>{item.title || item.name}</Text>
                 <Text style={styles.listingPrice}>{item.price ? `${item.price.toLocaleString()} VND / Giờ` : 'Liên hệ'}</Text>
+                {item.isSpacePart && item._parentSpaceInfo && (
+                  <View style={{ marginTop: 12, padding: 8, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Image 
+                      source={{ uri: (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0]?.url || (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0]?.imageUrl || (typeof (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)?.[0] === 'string' ? (item._parentSpaceInfo.pictureURLs || item._parentSpaceInfo.spacePictures || item._parentSpaceInfo.pictures)[0] : FALLBACK_IMAGE) }}
+                      style={{ width: 40, height: 40, borderRadius: 4, backgroundColor: '#e2e8f0' }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 10, color: '#64748B', fontWeight: '600' }}>Thuộc mặt bằng gốc</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A' }} numberOfLines={1}>
+                        {item._parentSpaceInfo.name || 'Không gian gốc'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#475569' }} numberOfLines={1}>
+                        Mặt bằng: {item._spacePartInfo?.name || 'Mặt bằng này'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           );
