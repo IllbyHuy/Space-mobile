@@ -86,11 +86,18 @@ export default function MyListingsScreen() {
             String(l.creatorId || '') === String(currentUserId) ||
             String(l.createdBy || '') === String(currentUserId);
         }).map((item: any) => {
-          const parentSpace = allSpacesAndParts.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
+          const spaceOrPart = allSpacesAndParts.find((s: any) => (s.id || s.Id) === (item.spaceId || item.SpaceId));
+          const isSpacePart = spaceOrPart?.isSpacePart || false;
+          const parentForOwner = isSpacePart && spaceOrPart?.parentSpaceId 
+            ? allSpacesAndParts.find((s: any) => (s.id || s.Id) == spaceOrPart.parentSpaceId)
+            : null;
+            
           return {
             ...item,
-            area: item.area || parentSpace?.area || null,
-            isSpacePart: parentSpace?.isSpacePart || false
+            area: item.area || spaceOrPart?.area || null,
+            isSpacePart,
+            _parentSpaceInfo: parentForOwner,
+            _spacePartInfo: isSpacePart ? spaceOrPart : null
           };
         });
         
@@ -187,11 +194,15 @@ export default function MyListingsScreen() {
                 {(item.listingType === 'SharedSpace' || item.listingType === 1) ? 'Theo giờ' : 'Dài hạn'}
               </Text>
             </View>
-            {item.isSpacePart && (
+            {item.isSpacePart && item._parentSpaceInfo ? (
+              <View style={[styles.statusBadge, { backgroundColor: '#F3E8FF', alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
+                <Text style={[styles.statusText, { color: '#7E22CE', fontSize: 10 }]} numberOfLines={1}>Thuộc: {item._parentSpaceInfo.name || 'Gốc'}</Text>
+              </View>
+            ) : item.isSpacePart ? (
               <View style={[styles.statusBadge, { backgroundColor: '#F3E8FF', alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 8 }]}>
                 <Text style={[styles.statusText, { color: '#7E22CE', fontSize: 10 }]}>Từ MB gốc</Text>
               </View>
-            )}
+            ) : null}
           </View>
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <TouchableOpacity onPress={() => router.push(`/listing/${item.id || item.Id}`)}>

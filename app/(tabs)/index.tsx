@@ -105,7 +105,6 @@ export default function HomeScreen() {
         <HomeSearchBar
           value={searchQuery}
           onChangeValue={setSearchQuery}
-          onPressMap={() => router.push("/map")}
           onPressFilter={() => setShowFilterModal(true)}
           isFilterActive={isAnyFilterActive}
           notificationCount={unreadCount} 

@@ -5,14 +5,13 @@ import { Feather } from '@expo/vector-icons';
 type HomeSearchBarProps = {
   value?: string;
   onChangeValue?: (text: string) => void;
-  onPressMap?: () => void; 
   onPressNotification?: () => void; 
   onPressFilter?: () => void; // Thêm lại prop cho Filter
   isFilterActive?: boolean;
   notificationCount?: number; 
 };
 
-export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotification, onPressFilter, isFilterActive, notificationCount = 0 }: HomeSearchBarProps) => {
+export const HomeSearchBar = ({ value, onChangeValue, onPressNotification, onPressFilter, isFilterActive, notificationCount = 0 }: HomeSearchBarProps) => {
   return (
     <View style={styles.container}>
       {/* Khung Search */}
@@ -27,11 +26,6 @@ export const HomeSearchBar = ({ value, onChangeValue, onPressMap, onPressNotific
           returnKeyType="search"
         />
       </View>
-
-      {/* Nút Xem Bản đồ (Map) */}
-      <TouchableOpacity style={styles.iconBtn} onPress={onPressMap}>
-        <Feather name="map" size={18} color="#fff" />
-      </TouchableOpacity>
 
       {/* Nút Thông báo (Bell) */}
       <TouchableOpacity 

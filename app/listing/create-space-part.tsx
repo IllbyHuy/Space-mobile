@@ -245,15 +245,6 @@ export default function CreateSpacePartScreen() {
     }
 
     const numArea = Number(area);
-    const parentArea = Number(parentSpace.area) || 0;
-    const availableArea = parentArea - existingPartsTotalArea;
-
-    if (numArea > availableArea) {
-      return Alert.alert(
-        "Lỗi",
-        `Diện tích không gian con (${numArea}m²) vượt quá diện tích còn lại của không gian gốc (${availableArea}m²).`,
-      );
-    }
 
     setIsSubmitting(true);
 
@@ -302,12 +293,6 @@ export default function CreateSpacePartScreen() {
           errorMessage = errData.message || errData.title || errText;
         } catch(e) {}
         
-        const lowerErr = errorMessage.toLowerCase();
-        if (lowerErr.includes("cannot exceed parent space area") || lowerErr.includes("diện tích") || lowerErr.includes("exceed")) {
-          errorMessage = "Tổng diện tích các không gian chia nhỏ vượt quá diện tích không gian gốc.";
-        } else if (lowerErr.includes("already been signed") || lowerErr.includes("already has an active contract")) {
-          errorMessage = "Mặt bằng này đã được ký hợp đồng hoặc đang có người thuê nên không thể chia nhỏ.";
-        }
         throw new Error(errorMessage || `Lỗi API: ${res.status}`);
       }
 
@@ -389,7 +374,7 @@ export default function CreateSpacePartScreen() {
           <Text style={styles.label}>Diện tích (m²) *</Text>
           <TextInput
             style={styles.input}
-            placeholder={`VD: Tối đa ${Math.max(0, (parentSpace?.area || 0) - existingPartsTotalArea)}`}
+            placeholder="VD: 50"
             keyboardType="numeric"
             value={area}
             onChangeText={(val) => setArea(val.replace(/[^\d]/g, ""))}
