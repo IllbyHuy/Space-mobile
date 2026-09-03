@@ -727,6 +727,10 @@ export const FeedListings = ({
         // "Cho thuê lại"
         if (item.listingType === 'SharedSpace' && cIdBadge && item._spaceOwnerId && String(cIdBadge) !== String(item._spaceOwnerId)) matches = true;
       }
+      if (listingTypeFilters.includes('spacePart')) {
+        // "Chia nhỏ mặt bằng" - có parentSpaceInfo (mặt bằng gốc)
+        if (item.isSpacePart === true) matches = true;
+      }
       
       return matches;
     });

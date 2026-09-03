@@ -228,6 +228,8 @@ export default function ListingDetailScreen() {
                 isSpacePart,
                 _spaceOwnerId,
                 _spaceOrPartDetails: spaceOrPart, // Save for the modal
+                _parentSpaceInfo: parentForOwner,
+                _spacePartInfo: isSpacePart ? spaceOrPart : null,
               };
               
               // Increment view count if not owner
@@ -492,11 +494,17 @@ export default function ListingDetailScreen() {
         const rawText = await response.text();
         console.error('[BookingRequest] Error response:', response.status, rawText);
         let errMsg = 'Có lỗi xảy ra khi gửi yêu cầu.';
-        try {
-          const errObj = rawText ? JSON.parse(rawText) : {};
-          errMsg = errObj.message || errObj.title || errObj.detail || JSON.stringify(errObj.errors || errObj);
-        } catch { }
-        Alert.alert("Lỗi", errMsg);
+        
+        if (rawText.includes("You already have a pending booking request for this listing")) {
+          errMsg = "Bạn đã có yêu cầu thuê đang chờ duyệt cho mặt bằng này rồi.";
+        } else {
+          try {
+            const errObj = rawText ? JSON.parse(rawText) : {};
+            errMsg = errObj.message || errObj.title || errObj.detail || JSON.stringify(errObj.errors || errObj);
+          } catch { }
+        }
+        
+        Alert.alert("Thông báo", errMsg);
       }
     } catch (error) {
       console.error("Lỗi API Booking:", error);
@@ -748,7 +756,13 @@ export default function ListingDetailScreen() {
                       const hh12 = hh % 12 || 12;
                       return `${hh12.toString().padStart(2, '0')}:${m} ${ampm}`;
                     };
-                    const dayStr = slot.daysOfWeek?.length > 0 ? slot.daysOfWeek.join(', ') : (slot.specificdate ? new Date(slot.specificdate).toLocaleDateString('vi-VN') : 'Hôm nay');
+                    const dayMapping: any = {
+                      'Monday': 'Thứ 2', 'Tuesday': 'Thứ 3', 'Wednesday': 'Thứ 4',
+                      'Thursday': 'Thứ 5', 'Friday': 'Thứ 6', 'Saturday': 'Thứ 7', 'Sunday': 'Chủ nhật',
+                      '1': 'Thứ 2', '2': 'Thứ 3', '3': 'Thứ 4', '4': 'Thứ 5', '5': 'Thứ 6', '6': 'Thứ 7', '0': 'Chủ nhật'
+                    };
+                    const getDayName = (d: string | number) => dayMapping[d?.toString()] || d;
+                    const dayStr = slot.daysOfWeek?.length > 0 ? slot.daysOfWeek.map(getDayName).join(', ') : (slot.specificdate ? new Date(slot.specificdate).toLocaleDateString('vi-VN') : 'Hôm nay');
                     return (
                       <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 }}>
                         <Text style={{ fontWeight: '600', color: '#0F172A', fontSize: 13, flex: 1, flexWrap: 'wrap', marginRight: 8 }}>{dayStr}</Text>
@@ -766,26 +780,81 @@ export default function ListingDetailScreen() {
             </View>
           </View>
 
-          {/* 5. MÔ TẢ */}
-          <View style={styles.descSection}>
-            {listing.isSpacePart && listing._parentSpaceInfo && (
-              <View style={{ marginBottom: 16, padding: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Image 
-                  source={{ uri: (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0]?.url || (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0]?.imageUrl || (typeof (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0] === 'string' ? (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)[0] : FALLBACK_IMAGE) }}
-                  style={{ width: 64, height: 64, borderRadius: 6, backgroundColor: '#e2e8f0' }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>Thuộc mặt bằng gốc</Text>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#0F172A', marginTop: 2 }}>
-                    {listing._parentSpaceInfo.name || 'Không gian gốc'}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#475569', marginTop: 2 }}>
-                    Mặt bằng: {listing._spacePartInfo?.name || 'Mặt bằng này'}
-                  </Text>
+          {/* 4.5. THÔNG TIN MẶT BẰNG (Giống Web) */}
+          {listing._parentSpaceInfo && (
+            <View style={styles.descSection}>
+              <Text style={styles.sectionTitle}>Thông tin mặt bằng</Text>
+              
+              {/* MẶT BẰNG GỐC - Hiện trước, to hơn */}
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', padding: 12, marginBottom: listing.isSpacePart ? 8 : 0 }}>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                  {(() => {
+                    const imgUrl = (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0]?.url || (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0]?.imageUrl || (typeof (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)?.[0] === 'string' ? (listing._parentSpaceInfo.pictureURLs || listing._parentSpaceInfo.spacePictures || listing._parentSpaceInfo.pictures)[0] : null);
+                    if (imgUrl) {
+                      return (
+                        <Image 
+                          source={{ uri: imgUrl }}
+                          style={{ width: 100, height: 80, borderRadius: 8, backgroundColor: '#e2e8f0' }}
+                        />
+                      );
+                    }
+                    return (
+                      <View style={{ width: 100, height: 80, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, color: '#94A3B8' }}>Chưa có ảnh</Text>
+                      </View>
+                    );
+                  })()}
+                  <View style={{ flex: 1 }}>
+                    {listing.isSpacePart && <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '600' }}>Mặt bằng gốc</Text>}
+                    <Text style={{ fontSize: 17, fontWeight: '700', color: '#0F172A', marginTop: 2, marginBottom: 4 }}>
+                      {listing._parentSpaceInfo.name || 'Không gian gốc'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 2 }}>
+                      <Feather name="map-pin" size={12} /> {listing._parentSpaceInfo.address || listing.address || 'Không rõ'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B' }}>
+                      Tổng diện tích: {listing._parentSpaceInfo.area ? `${listing._parentSpaceInfo.area} m²` : 'N/A'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            )}
 
+              {/* MẶT BẰNG NHỊ (chỉ khi là SpacePart) - Hiện sau, nhỏ hơn */}
+              {listing.isSpacePart && (
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', padding: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                    {(() => {
+                      if (mainImage && mainImage !== FALLBACK_IMAGE) {
+                        return (
+                          <Image 
+                            source={{ uri: mainImage }}
+                            style={{ width: 80, height: 64, borderRadius: 8, backgroundColor: '#f1f5f9' }}
+                          />
+                        );
+                      }
+                      return (
+                        <View style={{ width: 80, height: 64, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }}>
+                          <Text style={{ fontSize: 11, color: '#94A3B8' }}>Chưa có ảnh</Text>
+                        </View>
+                      );
+                    })()}
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>Mặt bằng thuê</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#0F172A', marginTop: 2, marginBottom: 2 }}>
+                        {listing._spacePartInfo?.name || listing.name || 'Mặt bằng này'}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: '#64748B' }}>
+                        Diện tích: {listing.area ? `${listing.area} m²` : 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* 5. MÔ TẢ */}
+          <View style={styles.descSection}>
             <Text style={styles.sectionTitle}>Thông tin mô tả</Text>
             <Text
               style={styles.description}
@@ -802,104 +871,7 @@ export default function ListingDetailScreen() {
               </TouchableOpacity>
             )}
           </View>
-
-          {/* TÌNH TRẠNG MẶT BẰNG */}
-          <View style={styles.descSection}>
-            <Text style={styles.sectionTitle}>Tình trạng mặt bằng</Text>
-            <View style={{ padding: 16, backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0' }}>
-              {(listing.isSpacePart === true) && (
-                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#FEF3C7', borderRadius: 8, marginBottom: 16 }}>
-                    <Feather name="grid" size={18} color="#D97706" style={{ marginRight: 8 }} />
-                    <Text style={{ color: '#D97706', fontWeight: '600', fontSize: 13, flex: 1 }}>Bạn đang xem một phần diện tích chia nhỏ của mặt bằng gốc.</Text>
-                 </View>
-              )}
-              {(listing.listingType === 'SharedSpace' && (listing.creatorId || listing.CreatorId) && listing._spaceOwnerId && String(listing.creatorId || listing.CreatorId) !== String(listing._spaceOwnerId)) && (
-                 <>
-                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#FCE7F3', borderRadius: 8, marginBottom: 16 }}>
-                      <Feather name="shield" size={18} color="#BE185D" style={{ marginRight: 8 }} />
-                      <Text style={{ color: '#BE185D', fontWeight: '600', fontSize: 13, flex: 1 }}>Mặt bằng này đang được sang nhượng / cho thuê lại.</Text>
-                   </View>
-                   
-                   <View style={{ borderWidth: 1, borderColor: '#10B981', borderRadius: 8, padding: 16, marginBottom: 16, backgroundColor: '#ECFDF5' }}>
-                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                       <View style={{ flex: 1, paddingRight: 8 }}>
-                         <Text style={{ margin: 0, color: '#047857', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>
-                           <Feather name="file-text" size={14} /> Chứng nhận quyền cho thuê lại
-                         </Text>
-                         <Text style={{ margin: 0, fontSize: 12, color: '#065F46' }}>Tài liệu hợp đồng gốc đã được xác thực bởi hệ thống.</Text>
-                       </View>
-                       <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
-                         <Text style={{ color: '#047857', fontSize: 11, fontWeight: 'bold' }}>ĐÃ XÁC THỰC</Text>
-                       </View>
-                     </View>
-                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                       <TouchableOpacity 
-                         onPress={() => setIsContractModalOpen(true)}
-                         style={{ width: 60, height: 80, backgroundColor: '#fff', borderWidth: 1, borderStyle: 'dashed', borderColor: '#10B981', borderRadius: 4, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}
-                       >
-                         <Feather name="lock" size={20} color="#047857" />
-                       </TouchableOpacity>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                            <Text style={{ fontWeight: '600', fontSize: 12, color: '#065F46', width: 90 }}>Người thuê gốc:</Text>
-                            <Text style={{ fontSize: 12, color: '#065F46', flex: 1 }}>{(subleaseContract?.lesseeName || listing.ownerName || 'Nguyễn Văn A').substring(0, 8)}***</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                            <Text style={{ fontWeight: '600', fontSize: 12, color: '#065F46', width: 90 }}>Thời hạn HĐ:</Text>
-                            <Text style={{ fontSize: 12, color: '#065F46', flex: 1 }}>{subleaseContract?.startDate ? `${new Date(subleaseContract.startDate).toLocaleDateString('vi-VN')} - ${new Date(subleaseContract.endDate).toLocaleDateString('vi-VN')}` : (listing.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : 'Còn hiệu lực')}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                            <Text style={{ fontWeight: '600', fontSize: 12, color: '#065F46', width: 90 }}>Quyền chia sẻ:</Text>
-                            <Text style={{ color: subleaseContract?.canShare !== false ? '#10B981' : '#EF4444', fontWeight: '600', fontSize: 12, flex: 1 }}>
-                              {subleaseContract?.canShare !== false ? 'Được phép' : 'Không'}
-                            </Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                            <Text style={{ fontWeight: '600', fontSize: 12, color: '#065F46', width: 90 }}>Diện tích HĐ:</Text>
-                            <Text style={{ fontSize: 12, color: '#065F46', flex: 1 }}>{subleaseContract?.acreage ? `${subleaseContract.acreage} m²` : (listing.area ? `${listing.area} m²` : 'Đã xác minh')}</Text>
-                          </View>
-                          <TouchableOpacity 
-                            onPress={() => setIsContractModalOpen(true)}
-                            style={{ paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#10B981', borderRadius: 4, alignItems: 'center' }}
-                          >
-                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>Xem chi tiết hợp đồng</Text>
-                          </TouchableOpacity>
-                        </View>
-                     </View>
-                   </View>
-                 </>
-              )}
-              {((listing.listingType === 'SharedSpace' || listing.priceUnit === 'PerHour') && listing.shareSpaceDetailAvailabilitiesTimes?.length > 0) ? (
-                 <View>
-                   <Text style={{ margin: 0, marginBottom: 12, fontSize: 14, color: '#475569', fontWeight: '500' }}>Các ca chia sẻ hiện đang trống:</Text>
-                   <View style={{ gap: 10 }}>
-                     {listing.shareSpaceDetailAvailabilitiesTimes.map((slot: any, idx: number) => {
-                       const formatDate = (dateStr: string) => {
-                         if (!dateStr) return '';
-                         const d = new Date(dateStr);
-                         return d.toLocaleDateString('vi-VN');
-                       };
-                       const dayStr = slot.daysOfWeek?.length > 0 ? slot.daysOfWeek.join(', ') : (slot.specificdate ? formatDate(slot.specificdate) : 'Hôm nay');
-                       return (
-                         <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 8 }}>
-                           <Text style={{ fontWeight: '600', color: '#0F172A', fontSize: 13 }}>{dayStr}</Text>
-                           <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 13 }}>{formatTime(slot.startTime)} - {formatTime(slot.endTime)}</Text>
-                         </View>
-                       );
-                     })}
-                   </View>
-                 </View>
-              ) : (
-                !(listing.isSpacePart === true) ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#D1FAE5', borderRadius: 8 }}>
-                    <Feather name="check-circle" size={18} color="#047857" style={{ marginRight: 8 }} />
-                    <Text style={{ color: '#047857', fontWeight: '600', fontSize: 13, flex: 1 }}>Mặt bằng nguyên căn - Thuê toàn quyền sử dụng 24/7.</Text>
-                  </View>
-                ) : null
-              )}
-            </View>
-          </View>
-
+          
           {/* 6. TIỆN ÍCH */}
           {activeAmenities.length > 0 && (
             <View style={styles.descSection}>
@@ -982,6 +954,42 @@ export default function ListingDetailScreen() {
               </View>
             </View>
           </View>
+
+          {/* TÓM TẮt HỢP ĐỒNG */}
+          {subleaseContract && (
+            <View style={styles.descSection}>
+              <Text style={styles.sectionTitle}>Tóm tắt hợp đồng</Text>
+              <View style={{ borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 16, backgroundColor: '#F8FFF9' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <Feather name="shield" size={18} color="#10B981" />
+                  <Text style={{ marginLeft: 8, fontSize: 14, fontWeight: '700', color: '#065F46' }}>Thông tin hợp đồng gốc</Text>
+                </View>
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#374151' }}>
+                    <Text style={{ fontWeight: '600' }}>Diện tích thuê: </Text>
+                    {subleaseContract.acreage ?? listing.area ?? 'Chưa rõ'} m²
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#374151' }}>
+                    <Text style={{ fontWeight: '600' }}>Thời hạn: </Text>
+                    {subleaseContract.startDate ? `${new Date(subleaseContract.startDate).toLocaleDateString('vi-VN')} – ${new Date(subleaseContract.endDate).toLocaleDateString('vi-VN')}` : 'Xem chi tiết'}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#374151' }}>
+                    <Text style={{ fontWeight: '600' }}>Cho thuê lại: </Text>
+                    <Text style={{ color: subleaseContract.canShare !== false ? '#059669' : '#DC2626', fontWeight: '700' }}>
+                      {subleaseContract.canShare !== false ? 'ĐƯỢC PHÉP' : 'KHÔNG ĐƯỢC PHÉP'}
+                    </Text>
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsContractModalOpen(true)}
+                  style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: '#10B981', backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Feather name="file-text" size={16} color="#10B981" />
+                  <Text style={{ color: '#10B981', fontWeight: '700', fontSize: 14 }}>Xem tóm tắt hợp đồng</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* 9. BẢN ĐỒ (HỖ TRỢ CẢ WEB VÀ MOBILE) */}
           {(() => {
@@ -1125,6 +1133,79 @@ export default function ListingDetailScreen() {
           </View>
         );
       })()}
+
+      {/* CONTRACT MODAL */}
+      <Modal
+        visible={isContractModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsContractModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom || 20 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="shield" size={18} color="#10B981" />
+                <Text style={styles.modalTitle}>Tóm tắt hợp đồng</Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsContractModalOpen(false)}>
+                <Feather name="x" size={22} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ padding: 4 }}>
+                <View style={{ backgroundColor: '#F0FDF4', borderRadius: 10, padding: 16, borderWidth: 1, borderColor: '#A7F3D0', marginBottom: 16 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#064E3B', marginBottom: 12, textAlign: 'center' }}>
+                    HỢP ĐỒNG THUÊ MẶT BẰNG
+                  </Text>
+                  <View style={{ gap: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>Diện tích thuê</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }}>{subleaseContract?.acreage ?? listing?.area ?? 'Chưa rõ'} m²</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>Địa chỉ</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827', flex: 2, textAlign: 'right' }}>{listing?.address || 'Xem tin đăng'}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>Bắt đầu</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }}>
+                        {subleaseContract?.startDate ? new Date(subleaseContract.startDate).toLocaleDateString('vi-VN') : '01/01/2023'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>Kết thúc</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#111827' }}>
+                        {subleaseContract?.endDate ? new Date(subleaseContract.endDate).toLocaleDateString('vi-VN') : (listing?.allowedEndTime ? new Date(listing.allowedEndTime).toLocaleDateString('vi-VN') : '31/12/2025')}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 13, color: '#6B7280', flex: 1 }}>Cho thuê lại</Text>
+                      <View style={{ backgroundColor: subleaseContract?.canShare !== false ? '#D1FAE5' : '#FEE2E2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: subleaseContract?.canShare !== false ? '#065F46' : '#991B1B' }}>
+                          {subleaseContract?.canShare !== false ? 'ĐƯỢC PHÉP' : 'KHÔNG ĐƯỢC PHÉP'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 12, flexDirection: 'row', gap: 8 }}>
+                  <Feather name="alert-circle" size={16} color="#92400E" />
+                  <Text style={{ fontSize: 12, color: '#92400E', flex: 1, lineHeight: 18 }}>
+                    Đây là thông tin tóm tắt từ hợp đồng gốc. Chỉ dùng để tham khảo, không có giá trị pháp lý.
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+            <TouchableOpacity
+              onPress={() => setIsContractModalOpen(false)}
+              style={[styles.bookBtn, { marginTop: 12 }]}
+            >
+              <Text style={styles.bookBtnText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* REPORT MODAL */}
       <Modal

@@ -144,6 +144,7 @@ export default function HomeScreen() {
                   { val: 'all', label: 'Tất cả' },
                   { val: 'timeslot', label: 'Chia sẻ khung giờ' },
                   { val: 'partial', label: 'Một góc/Kiot' },
+                  { val: 'spacePart', label: 'Chia nhỏ mặt bằng' },
                   { val: 'full', label: 'Thuê nguyên căn' },
                   { val: 'sublease', label: 'Cho thuê lại' },
                 ].map(opt => {

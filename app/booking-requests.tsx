@@ -61,7 +61,14 @@ export default function BookingRequestsScreen() {
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTarget, setRejectTarget] = useState<{requestId: number, lesseeId: string} | null>(null);
-  const [filterStatus, setFilterStatus] = useState<"Pending" | "Rejected" | "Approved">("Pending");
+  const [filterStatus, setFilterStatus] = useState<"Pending" | "Rejected" | "Approved" | "Sent">("Pending");
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
+  const [sentListingsById, setSentListingsById] = useState<Record<number, any>>({});
+  
+  // States cho Edit
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -82,15 +89,29 @@ export default function BookingRequestsScreen() {
   const fetchRequests = async () => {
     setIsLoading(true);
     try {
-      // GIỐNG WEB: fetch requests + spaces song song
-      const [reqRes, spacesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=${filterStatus}`, {
+      let mergedRequests: any[] = [];
+      const STATUS_LIST = ['Pending', 'Negotiating', 'Approved', 'Rejected', 'Canceled'];
+
+      const fetchStatus = async (status: string) => {
+        const res = await fetch(`${API_BASE}/api/PrimaryBookingRequest/GetAll?status=${status}`, {
           headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
-        }),
-        fetch(`${API_BASE}/api/Space/GetAll`, {
-          headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
-        }),
-      ]);
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const safeData = Array.isArray(data) ? data : data?.data || data?.items || [];
+        return safeData.map((req: any) => ({ ...req, status }));
+      };
+
+      if (filterStatus === "Sent") {
+        const results = await Promise.all(STATUS_LIST.map(st => fetchStatus(st)));
+        mergedRequests = results.flat();
+      } else {
+        mergedRequests = await fetchStatus(filterStatus);
+      }
+
+      const spacesRes = await fetch(`${API_BASE}/api/Space/GetAll`, {
+        headers: { Authorization: `Bearer ${token}`, accept: "*/*" },
+      });
 
       // Build spaces map (để ghép địa chỉ)
       if (spacesRes.ok) {
@@ -104,27 +125,31 @@ export default function BookingRequestsScreen() {
         setSpacesById(map);
       }
 
-      if (reqRes.ok) {
-        const data = await reqRes.json();
-        const safeData = Array.isArray(data) ? data : data?.data || data?.items || [];
-        const myRequests = safeData.filter(
-          (req: any) => {
-            const isLessor = String(req.lessorId) === String(currentUserId);
-            const isLessee = String(req.lesseeId || req.LesseeId) === String(currentUserId);
-            
-            if (filterStatus === "Rejected") {
-               return isLessor || isLessee;
-            } else {
-               return isLessor;
-            }
+      const myRequests = mergedRequests.filter(
+        (req: any) => {
+          const isLessor = String(req.lessorId) === String(currentUserId);
+          const isLessee = String(req.lesseeId || req.LesseeId) === String(currentUserId);
+          
+          if (filterStatus === "Rejected") {
+             return isLessor || isLessee;
+          } else {
+             return isLessor;
           }
-        );
-        setRequests(myRequests);
+        }
+      );
+      setRequests(myRequests);
 
-        // GIỐNG WEB: fetch từng listing theo GetById (đáng tin cậy hơn GetAll)
-        const uniqueListingIds = Array.from(
-          new Set(myRequests.map((r: any) => r.listingId || r.ListingId).filter(Boolean))
-        );
+      // Fetch sent requests (current user is lessee)
+      const mySentRequests = mergedRequests.filter(
+        (req: any) => String(req.lesseeId || req.LesseeId) === String(currentUserId)
+      );
+      setSentRequests(mySentRequests);
+
+      // GIỐNG WEB: fetch từng listing theo GetById (đáng tin cậy hơn GetAll)
+      const allRequestsToFetch = [...myRequests, ...mySentRequests];
+      const uniqueListingIds = Array.from(
+        new Set(allRequestsToFetch.map((r: any) => r.listingId || r.ListingId).filter(Boolean))
+      );
         const listingResults = await Promise.all(
           uniqueListingIds.map(async (listingId) => {
             try {
@@ -145,7 +170,7 @@ export default function BookingRequestsScreen() {
           if (entry) listingMap[entry.listingId] = entry.listing;
         });
         setListingsById(listingMap);
-      }
+        setSentListingsById(listingMap);
     } catch (error) {
       console.error("Lỗi tải danh sách yêu cầu:", error);
     } finally {
@@ -239,16 +264,71 @@ export default function BookingRequestsScreen() {
         } catch {
           Alert.alert("Thông báo", "Đã duyệt đơn nhưng không thể tạo phòng chat tự động.");
         }
-      } else {
-        Alert.alert(
-          "Thành công",
-          newStatus === "Approved" ? "Đã chấp nhận thương thảo thành công!" : "Đã từ chối yêu cầu thuê!",
-        );
+      } else if (newStatus === "Rejected") {
+        Alert.alert("Thành công", "Đã từ chối yêu cầu.");
       }
       fetchRequests();
     } catch (error) {
       console.error("Lỗi cập nhật:", error);
+    }
+  };
+
+  const handleDeleteRequest = (requestId: number) => {
+    Alert.alert(
+      "Xác nhận",
+      "Bạn có chắc muốn xoá yêu cầu thuê này không?",
+      [
+        { text: "Hủy", style: "cancel" },
+        { 
+          text: "Xóa", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              const res = await fetch(`${API_BASE}/api/PrimaryBookingRequest/Delete/${requestId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}`, accept: "*/*" }
+              });
+              if (!res.ok) {
+                Alert.alert("Lỗi", "Lỗi khi xoá yêu cầu thuê!");
+                return;
+              }
+              Alert.alert("Thành công", "Đã xoá yêu cầu thuê!");
+              fetchRequests();
+            } catch (error) {
+              Alert.alert("Lỗi", "Lỗi kết nối máy chủ!");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/PrimaryBookingRequest/Update/${editForm.id || editForm.Id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            ...editForm,
+            expectedStartDate: new Date(editForm.expectedStartDate).toISOString()
+          })
+        }
+      );
+      if (!res.ok) {
+        Alert.alert("Lỗi", "Lỗi khi cập nhật yêu cầu thuê!");
+        return;
+      }
+      Alert.alert("Thành công", "Đã cập nhật yêu cầu thuê!");
+      setEditModalVisible(false);
+      fetchRequests();
+    } catch (error) {
       Alert.alert("Lỗi", "Lỗi kết nối máy chủ!");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -411,12 +491,148 @@ export default function BookingRequestsScreen() {
         <TouchableOpacity style={[styles.tab, filterStatus === "Rejected" && styles.activeTab]} onPress={() => setFilterStatus("Rejected")}>
           <Text style={[styles.tabText, filterStatus === "Rejected" && styles.activeTabText]}>Từ chối</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.tab, filterStatus === "Sent" && styles.activeTab]} onPress={() => setFilterStatus("Sent")}>
+          <Text style={[styles.tabText, filterStatus === "Sent" && styles.activeTabText]}>Đơn đã gửi</Text>
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#00A67E" />
         </View>
+      ) : filterStatus === "Sent" ? (
+        // TAB ĐƠN ĐÃ GỬI
+        sentRequests.length === 0 ? (
+          <View style={styles.center}>
+            <Feather name="send" size={48} color="#D1D5DB" />
+            <Text style={styles.emptyText}>Bạn chưa gửi yêu cầu thuê nào.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={sentRequests}
+            keyExtractor={(item) => (item.id || item.Id).toString()}
+            renderItem={({ item }) => {
+              const listingId = item.listingId || item.ListingId;
+              const listing = sentListingsById[listingId];
+              const picObj = listing?.listingPictures?.[0] || listing?.pictures?.[0];
+              const listingImage = getListingPictureUrl(picObj) || FALLBACK_IMAGE;
+              const listingName = listing?.name || listing?.title || (listing === undefined ? "Đang tải..." : `Mặt bằng #${listingId}`);
+              const listingAddress = getListingAddress(listing, spacesById);
+              const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+                Pending: { label: 'Chờ duyệt', color: '#B45309', bg: '#FEF3C7' },
+                Approved: { label: 'Đã duyệt', color: '#065F46', bg: '#D1FAE5' },
+                Rejected: { label: 'Bị từ chối', color: '#991B1B', bg: '#FEE2E2' },
+              };
+              const statusInfo = statusMap[item.status] || { label: item.status, color: '#374151', bg: '#F3F4F6' };
+              return (
+                <View style={styles.card}>
+                  <TouchableOpacity
+                    style={styles.listingRow}
+                    activeOpacity={0.8}
+                    onPress={() => { if (listingId) router.push(`/listing/${listingId}` as any); }}
+                  >
+                    <Image source={{ uri: listingImage }} style={styles.listingImage} resizeMode="cover" />
+                    <View style={styles.listingInfo}>
+                      <Text style={styles.listingName} numberOfLines={2}>{listingName}</Text>
+                      {!!listingAddress && (
+                        <View style={styles.addrRow}>
+                          <Feather name="map-pin" size={11} color="#6B7280" />
+                          <Text style={styles.listingAddr} numberOfLines={1}>{listingAddress}</Text>
+                        </View>
+                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                        <View style={{ backgroundColor: statusInfo.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }}>
+                          <Text style={{ color: statusInfo.color, fontSize: 12, fontWeight: '600' }}>{statusInfo.label}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={styles.divider} />
+                  <View style={styles.cardBody}>
+                    <View style={styles.infoRow}>
+                      <Feather name="dollar-sign" size={14} color="#6B7280" />
+                      <Text style={styles.infoText}>
+                        <Text style={styles.bold}>Giá đề xuất: </Text>
+                        {item.offeredPrice ? `${item.offeredPrice.toLocaleString('vi-VN')} VND` : 'Thỏa thuận'}
+                      </Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Feather name="calendar" size={14} color="#6B7280" />
+                      <Text style={styles.infoText}>
+                        <Text style={styles.bold}>Bắt đầu: </Text>
+                        {item.expectedStartDate ? new Date(item.expectedStartDate).toLocaleDateString('vi-VN') : '—'}
+                      </Text>
+                    </View>
+                    {!!item.duration && (
+                      <View style={styles.infoRow}>
+                        <Feather name="clock" size={14} color="#6B7280" />
+                        <Text style={styles.infoText}>
+                          <Text style={styles.bold}>Thời gian thuê: </Text>
+                          {item.duration} {item.durationUnit === 'Days' ? 'Ngày' : item.durationUnit === 'Months' ? 'Tháng' : item.durationUnit === 'Years' ? 'Năm' : item.durationUnit}
+                        </Text>
+                      </View>
+                    )}
+                    {!!item.purpose && (
+                      <View style={styles.infoRow}>
+                        <Feather name="briefcase" size={14} color="#6B7280" />
+                        <Text style={styles.infoText}>
+                          <Text style={styles.bold}>Mục đích: </Text>
+                          {item.purpose}
+                        </Text>
+                      </View>
+                    )}
+                    {!!item.note && (
+                      <View style={styles.infoRow}>
+                        <Feather name="message-square" size={14} color="#6B7280" />
+                        <Text style={styles.infoText}>
+                          <Text style={styles.bold}>Ghi chú: </Text>
+                          {item.note}
+                        </Text>
+                      </View>
+                    )}
+                    {item.status === 'Rejected' && !!item.cancelReason && (
+                      <View style={styles.infoRow}>
+                        <Feather name="alert-circle" size={14} color="#EF4444" />
+                        <Text style={[styles.infoText, { color: '#EF4444' }]}>
+                          <Text style={styles.bold}>Lý do từ chối: </Text>
+                          {item.cancelReason}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* ACTION BUTTONS CHO SENT TAB (CHỈ KHI PENDING) */}
+                    {item.status === 'Pending' && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                        <TouchableOpacity 
+                          style={{ flex: 1, backgroundColor: '#F1F5F9', paddingVertical: 10, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                          onPress={() => {
+                            setEditForm({
+                              ...item,
+                              expectedStartDate: item.expectedStartDate ? item.expectedStartDate.slice(0, 10) : ''
+                            });
+                            setEditModalVisible(true);
+                          }}
+                        >
+                          <Feather name="edit-3" size={14} color="#3B82F6" />
+                          <Text style={{ color: '#3B82F6', fontWeight: '600', fontSize: 13 }}>Sửa</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={{ flex: 1, backgroundColor: '#FEF2F2', paddingVertical: 10, borderRadius: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                          onPress={() => handleDeleteRequest(item.id || item.Id)}
+                        >
+                          <Feather name="trash-2" size={14} color="#EF4444" />
+                          <Text style={{ color: '#EF4444', fontWeight: '600', fontSize: 13 }}>Xóa</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            }}
+            contentContainerStyle={{ padding: 12, paddingBottom: 80 }}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          />
+        )
       ) : requests.length === 0 ? (
         <View style={styles.center}>
           <Feather name="inbox" size={48} color="#D1D5DB" />
@@ -473,6 +689,119 @@ export default function BookingRequestsScreen() {
                 }}
               >
                 <Text style={styles.modalBtnSubmitText}>Xác nhận</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Form Modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={styles.modalTitle}>Sửa yêu cầu thuê</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Feather name="x" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            
+            {editForm && (
+              <FlatList 
+                data={[1]}
+                renderItem={() => (
+                  <View style={{ gap: 12 }}>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Giá đề xuất (VND)</Text>
+                      <TextInput 
+                        style={styles.modalInput}
+                        keyboardType="numeric"
+                        value={editForm.offeredPrice?.toString()}
+                        onChangeText={(t) => setEditForm({ ...editForm, offeredPrice: Number(t) || 0 })}
+                      />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Ngày bắt đầu (YYYY-MM-DD)</Text>
+                      <TextInput 
+                        style={styles.modalInput}
+                        value={editForm.expectedStartDate}
+                        onChangeText={(t) => setEditForm({ ...editForm, expectedStartDate: t })}
+                      />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Thời gian thuê</Text>
+                      <TextInput 
+                        style={styles.modalInput}
+                        keyboardType="numeric"
+                        value={editForm.duration?.toString()}
+                        onChangeText={(t) => setEditForm({ ...editForm, duration: Number(t) || 0 })}
+                      />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Đơn vị</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {(['Days', 'Months', 'Years'] as const).map(unit => (
+                          <TouchableOpacity
+                            key={unit}
+                            onPress={() => setEditForm({ ...editForm, durationUnit: unit })}
+                            style={{
+                              flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+                              backgroundColor: editForm.durationUnit === unit ? '#00A67E' : '#F3F4F6',
+                              borderWidth: 1, borderColor: editForm.durationUnit === unit ? '#00A67E' : '#D1D5DB',
+                            }}
+                          >
+                            <Text style={{ color: editForm.durationUnit === unit ? '#fff' : '#374151', fontWeight: '600', fontSize: 13 }}>
+                              {unit === 'Days' ? 'Ngày' : unit === 'Months' ? 'Tháng' : 'Năm'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Mục đích sử dụng</Text>
+                      <TextInput 
+                        style={styles.modalInput}
+                        value={editForm.purpose}
+                        onChangeText={(t) => setEditForm({ ...editForm, purpose: t })}
+                      />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: '500' }}>Ghi chú</Text>
+                      <TextInput 
+                        style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+                        multiline
+                        value={editForm.note}
+                        onChangeText={(t) => setEditForm({ ...editForm, note: t })}
+                      />
+                    </View>
+                  </View>
+                )}
+                keyExtractor={(i) => i.toString()}
+              />
+            )}
+
+            <View style={[styles.modalActions, { marginTop: 16 }]}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.modalBtnCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnSubmit]}
+                onPress={handleSaveEdit}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalBtnSubmitText}>Lưu thay đổi</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
